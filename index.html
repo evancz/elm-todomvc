@@ -1,0 +1,29 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Elm • TodoMVC</title>
+  <script type="text/javascript" src="http://elm-lang.org/elm-runtime.js"></script>
+  <script type="text/javascript" src="build/Todo.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+</body>
+
+<script type="text/javascript">
+var todomvc = Elm.fullscreen(Elm.Main);
+todomvc.ports.focus.subscribe(function(selector) {
+    setTimeout(function() {
+        var nodes = document.querySelectorAll(selector);
+        console.log(nodes);
+        if (nodes.length === 1 && document.activeElement !== nodes[0]) {
+            nodes[0].focus()
+        }
+    }, 50);
+});
+
+</script>
+
+</html>
