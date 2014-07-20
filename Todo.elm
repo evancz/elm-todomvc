@@ -1,3 +1,21 @@
+module Todo where
+{-| TodoMVC implemented in Elm, using plain HTML and CSS for rendering.
+
+This application is broken up into four distinct parts:
+
+  1. Model  - a full definition of the application's state
+  2. Update - a way to step the application state forward
+  3. View   - a way to visualize our application state with HTML
+  4. Inputs - the signals necessary to manage events
+
+This clean division of concerns is a core part of Elm. You can read more about
+this in the Pong tutorial: http://elm-lang.org/blog/Pong.elm
+
+This program is not particularly large, so definitely see the following
+document for notes on structuring more complex GUIs with Elm:
+https://gist.github.com/evancz/2b2ba366cae1887fe621
+-}
+
 import String
 import Html
 import Html (..)
@@ -8,116 +26,116 @@ import Window
 import Graphics.Input (..)
 import Graphics.Input as Input
 
-data Route = All | Completed | Active
 
-type Todo =
-    { completed : Bool
-    , editing : Bool
-    , title : String
-    , id : Int
-    }
+---- MODEL ----
 
+-- The full application state of our todo app.
 type State =
-    { todos : [Todo]
-    , route : Route
-    , field : String
-    , guid  : Int
+    { tasks      : [Task]
+    , field      : String
+    , uid        : Int
+    , visibility : Visibility
     }
 
-actions : Input Action
-actions = Input.input NoOp
+data Visibility = All | Completed | Active
 
-port focus : Signal String
-port focus =
-    let needsFocus act =
-            case act of
-              EditingTask id bool -> bool
-              _ -> False
+type Task =
+    { description : String
+    , completed   : Bool
+    , editing     : Bool
+    , id          : Int
+    }
 
-        toSelector (EditingTask id _) = ("#todo-" ++ show id)
-    in
-        toSelector <~ keepIf needsFocus (EditingTask 0 True) actions.signal
+newTask : String -> Int -> Task
+newTask desc id =
+    { description = desc
+    , completed = False 
+    , editing = False
+    , id = id
+    }
 
+startingState : State
+startingState =
+    { tasks = []
+    , visibility = All
+    , field = ""
+    , uid = 0
+    }
+
+
+---- UPDATE ----
+
+-- A description of the kinds of actions that can be performed on the state of
+-- the application. See the following post for more info on this pattern and
+-- some alternatives: https://gist.github.com/evancz/2b2ba366cae1887fe621
 data Action
     = NoOp
     | UpdateField String
-
     | EditingTask Int Bool
     | UpdateTask Int String
-
     | Add
     | Delete Int
     | DeleteComplete
     | Check Int Bool
     | CheckAll Bool
-    | ChangeRoute Route
+    | ChangeVisibility Visibility
 
+-- How to we step the state forward for any given action
 step : Action -> State -> State
 step action state =
     case action of
       NoOp -> state
 
       Add ->
-          let newTodo = Todo False False state.field state.guid
-              newItems = if String.isEmpty state.field then [] else [newTodo]
-          in
-              { state | todos <- state.todos ++ newItems
-                      , guid <- state.guid + 1
-                      , field <- ""
-              }
+          { state | uid <- state.uid + 1
+                  , field <- ""
+                  , tasks <- if String.isEmpty state.field
+                               then state.tasks
+                               else state.tasks ++ [newTask state.field state.uid]
+          }
 
       UpdateField str ->
           { state | field <- str }
 
       EditingTask id isEditing ->
           let update t = if t.id == id then { t | editing <- isEditing } else t
-          in  { state | todos <- map update state.todos }
+          in  { state | tasks <- map update state.tasks }
 
       UpdateTask id task ->
-          let update t = if t.id == id then { t | title <- task } else t
-          in  { state | todos <- map update state.todos }
+          let update t = if t.id == id then { t | description <- task } else t
+          in  { state | tasks <- map update state.tasks }
 
       Delete id ->
-          { state | todos <- filter (\t -> t.id /= id) state.todos }
+          { state | tasks <- filter (\t -> t.id /= id) state.tasks }
 
       DeleteComplete ->
-          { state | todos <- filter (not . .completed) state.todos }
+          { state | tasks <- filter (not . .completed) state.tasks }
 
       Check id isCompleted ->
           let update t = if t.id == id then { t | completed <- isCompleted } else t
-          in  { state | todos <- map update state.todos }
+          in  { state | tasks <- map update state.tasks }
 
       CheckAll isCompleted ->
           let update t = { t | completed <- isCompleted } in
-          { state | todos <- map update state.todos }
+          { state | tasks <- map update state.tasks }
 
-      ChangeRoute route ->
-          { state | route <- route }
+      ChangeVisibility visibility ->
+          { state | visibility <- visibility }
 
-state : State
-state =
-    { todos = []
-    , route = All
-    , field = ""
-    , guid = 0
-    }
 
-main = lift2 scene (foldp step state actions.signal) Window.dimensions
+---- VIEW ----
 
-scene state (w,h) =
-    container w h midTop (Html.toElement 550 h (render state))
-
-render : State -> Html
-render state =
+view : State -> Html
+view state =
     node "div"
       [ "className" := "todomvc-wrapper" ]
       [ "visibility" := "hidden" ]
       [ node "section"
           [ "id" := "todoapp" ]
           []
-          [ Ref.lazy header state.field
-          , Ref.lazy2 mainSection state.route state.todos
-          , Ref.lazy2 statsSection state.route state.todos
+          [ Ref.lazy taskEntry state.field
+          , Ref.lazy2 taskList state.visibility state.tasks
+          , Ref.lazy2 controls state.visibility state.tasks
           ]
       , infoFooter
       ]
@@ -126,8 +144,8 @@ onEnter : Handle a -> a -> EventListener
 onEnter handle value =
     on "keydown" (when (\k -> k.keyCode == 13) getKeyboardEvent) handle (always value)
 
-header : String -> Html
-header value =
+taskEntry : String -> Html
+taskEntry value =
     node "header" 
       [ "id" := "header" ]
       []
@@ -146,19 +164,19 @@ header value =
           []
       ]
 
-mainSection : Route -> [Todo] -> Html
-mainSection route todos =
+taskList : Visibility -> [Task] -> Html
+taskList visibility tasks =
     let isVisible todo =
-            case route of
+            case visibility of
               Completed -> todo.completed
               Active -> not todo.completed
               All -> True
 
-        allCompleted = all .completed todos
+        allCompleted = all .completed tasks
     in
     node "section"
       [ "id" := "main" ]
-      [ "visibility" := if isEmpty todos then "hidden" else "visible" ]
+      [ "visibility" := if isEmpty tasks then "hidden" else "visible" ]
       [ eventNode "input"
           [ "id" := "toggle-all"
           , "type" := "checkbox"
@@ -175,10 +193,10 @@ mainSection route todos =
       , node "ul"
           [ "id" := "todo-list" ]
           []
-          (map todoItem (filter isVisible todos))
+          (map todoItem (filter isVisible tasks))
       ]
 
-todoItem : Todo -> Html
+todoItem : Task -> Html
 todoItem todo =
     let className = (if todo.completed then "completed " else "") ++
                     (if todo.editing   then "editing"    else "")
@@ -196,14 +214,14 @@ todoItem todo =
               []
           , eventNode "label" [] []
               [ ondblclick actions.handle (\_ -> EditingTask todo.id True) ]
-              [ text todo.title ]
+              [ text todo.description ]
           , eventNode "button" [ "className" := "destroy" ] []
               [ onclick actions.handle (always (Delete todo.id)) ] []
 
           ]
       , eventNode "input"
           [ "className" := "edit"
-          , "value" := todo.title
+          , "value" := todo.description
           , "name" := "title"
           , "id" := ("todo-" ++ show todo.id)
           ]
@@ -215,40 +233,40 @@ todoItem todo =
           []
       ]
 
-statsSection : Route -> [Todo] -> Html
-statsSection route todos =
-    let todosCompleted = length (filter .completed todos)
-        todosLeft = length todos - todosCompleted
+controls : Visibility -> [Task] -> Html
+controls visibility tasks =
+    let tasksCompleted = length (filter .completed tasks)
+        tasksLeft = length tasks - tasksCompleted
     in
-    node "footer" [ "id" := "footer", bool "hidden" (isEmpty todos) ] []
+    node "footer" [ "id" := "footer", bool "hidden" (isEmpty tasks) ] []
       [ node "span" [ "id" := "todo-count" ] []
-          [ node "strong" [] [] [ text (show todosLeft) ]
-          , let item_ = if todosLeft == 1 then " item" else " items"
+          [ node "strong" [] [] [ text (show tasksLeft) ]
+          , let item_ = if tasksLeft == 1 then " item" else " items"
             in  text (item_ ++ " left")
           ]
       , node "ul" [ "id" := "filters" ] []
-          [ routeSwap "#/"          All       route
+          [ visibilitySwap "#/"          All       visibility
           , text " "
-          , routeSwap "#/active"    Active    route
+          , visibilitySwap "#/active"    Active    visibility
           , text " "
-          , routeSwap "#/completed" Completed route
+          , visibilitySwap "#/completed" Completed visibility
           ]
       , eventNode "button"
           [ "className" := "clear-completed"
           , "id" := "clear-completed"
-          , bool "hidden" (todosCompleted == 0)
+          , bool "hidden" (tasksCompleted == 0)
           ]
           []
           [ onclick actions.handle (always DeleteComplete) ]
-          [ text ("Clear completed (" ++ show todosCompleted ++ ")") ]
+          [ text ("Clear completed (" ++ show tasksCompleted ++ ")") ]
       ]
 
-routeSwap : String -> Route -> Route -> Html
-routeSwap uri route actualRoute =
-    let className = if route == actualRoute then "selected" else "" in
+visibilitySwap : String -> Visibility -> Visibility -> Html
+visibilitySwap uri visibility actualVisibility =
+    let className = if visibility == actualVisibility then "selected" else "" in
     eventNode "li" [] []
-      [ onclick actions.handle (always (ChangeRoute route)) ]
-      [ node "a" [ "className" := className, "href" := uri ] [] [ text (show route) ]
+      [ onclick actions.handle (always (ChangeVisibility visibility)) ]
+      [ node "a" [ "className" := className, "href" := uri ] [] [ text (show visibility) ]
       ]
 
 infoFooter : Html
@@ -266,3 +284,36 @@ infoFooter =
           , node "a" [ "href" := "http://todomvc.com" ] [] [ text "TodoMVC" ]
           ]
       ]
+
+
+---- INPUTS ----
+
+-- wire the entire application together
+main : Signal Element
+main = lift2 scene state Window.dimensions
+
+-- the state of our application over time
+state : Signal State
+state = foldp step startingState actions.signal
+
+scene : State -> (Int,Int) -> Element
+scene state (w,h) =
+    container w h midTop (Html.toElement 550 h (view state))
+
+actions : Input Action
+actions = Input.input NoOp
+
+port focus : Signal String
+port focus =
+    let needsFocus act =
+            case act of
+              EditingTask id bool -> bool
+              _ -> False
+
+        toSelector (EditingTask id _) = ("#todo-" ++ show id)
+    in
+        toSelector <~ keepIf needsFocus (EditingTask 0 True) actions.signal
+
+-- I know why you are here... It is less than 270 lines without comments ;)
+-- That's pretty short, but the architecture stuff discussed at the top is
+-- probably more important.
