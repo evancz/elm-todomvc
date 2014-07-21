@@ -1768,18 +1768,18 @@ Elm.Native.Html.make = function(elm) {
 },{"data-set":2,"dom-delegator":8,"virtual-dom/create-element":15,"virtual-dom/diff":16,"virtual-dom/patch":20,"vtree/vnode":38,"vtree/vtext":39}],41:[function(require,module,exports){
 
 },{}]},{},[40]);
-Elm.Main = Elm.Main || {};
-Elm.Main.make = function (_elm) {
+Elm.Todo = Elm.Todo || {};
+Elm.Todo.make = function (_elm) {
    "use strict";
-   _elm.Main = _elm.Main || {};
-   if (_elm.Main.values)
-   return _elm.Main.values;
+   _elm.Todo = _elm.Todo || {};
+   if (_elm.Todo.values)
+   return _elm.Todo.values;
    var _N = Elm.Native,
    _U = _N.Utils.make(_elm),
    _L = _N.List.make(_elm),
    _A = _N.Array.make(_elm),
    _E = _N.Error.make(_elm),
-   $moduleName = "Main";
+   $moduleName = "Todo";
    var Basics = Elm.Basics.make(_elm);
    var Color = Elm.Color.make(_elm);
    var Graphics = Graphics || {};
@@ -1806,6 +1806,20 @@ Elm.Main.make = function (_elm) {
    var Time = Elm.Time.make(_elm);
    var Window = Elm.Window.make(_elm);
    var _op = {};
+   var getStorage = Native.Ports.portIn("getStorage",
+   function (v) {
+      return v === null ? Maybe.Nothing : Maybe.Just(typeof v === "object" && "field" in v && "uid" in v && "visibility" in v && "tasks" in v ? {_: {}
+                                                                                                                                                ,field: typeof v.field === "string" || typeof v.field === "object" && v.field instanceof String ? v.field : _E.raise("invalid input, expecting JSString but got " + v.field)
+                                                                                                                                                ,uid: typeof v.uid === "number" ? v.uid : _E.raise("invalid input, expecting JSNumber but got " + v.uid)
+                                                                                                                                                ,visibility: typeof v.visibility === "string" || typeof v.visibility === "object" && v.visibility instanceof String ? v.visibility : _E.raise("invalid input, expecting JSString but got " + v.visibility)
+                                                                                                                                                ,tasks: _U.isJSArray(v.tasks) ? _L.fromArray(v.tasks.map(function (v) {
+                                                                                                                                                   return typeof v === "object" && "description" in v && "completed" in v && "editing" in v && "id" in v ? {_: {}
+                                                                                                                                                                                                                                                           ,description: typeof v.description === "string" || typeof v.description === "object" && v.description instanceof String ? v.description : _E.raise("invalid input, expecting JSString but got " + v.description)
+                                                                                                                                                                                                                                                           ,completed: typeof v.completed === "boolean" ? v.completed : _E.raise("invalid input, expecting JSBoolean but got " + v.completed)
+                                                                                                                                                                                                                                                           ,editing: typeof v.editing === "boolean" ? v.editing : _E.raise("invalid input, expecting JSBoolean but got " + v.editing)
+                                                                                                                                                                                                                                                           ,id: typeof v.id === "number" ? v.id : _E.raise("invalid input, expecting JSNumber but got " + v.id)} : _E.raise("invalid input, expecting JSObject [\"description\",\"completed\",\"editing\",\"id\"] but got " + v);
+                                                                                                                                                })) : _E.raise("invalid input, expecting JSArray but got " + v.tasks)} : _E.raise("invalid input, expecting JSObject [\"field\",\"uid\",\"visibility\",\"tasks\"] but got " + v));
+   });
    var infoFooter = A4(Html.node,
    "footer",
    _L.fromArray([A2(Html._op[":="],
@@ -1853,8 +1867,8 @@ Elm.Main.make = function (_elm) {
       handle,
       Basics.always(value));
    });
-   var ChangeRoute = function (a) {
-      return {ctor: "ChangeRoute"
+   var ChangeVisibility = function (a) {
+      return {ctor: "ChangeVisibility"
              ,_0: a};
    };
    var CheckAll = function (a) {
@@ -1890,37 +1904,7 @@ Elm.Main.make = function (_elm) {
    };
    var NoOp = {ctor: "NoOp"};
    var actions = Graphics.Input.input(NoOp);
-   var focus = Native.Ports.portOut("focus",
-   Native.Ports.outgoingSignal(function (v) {
-      return v;
-   }),
-   function () {
-      var toSelector = function (_v0) {
-         return function () {
-            switch (_v0.ctor)
-            {case "EditingTask":
-               return _L.append("#todo-",
-                 String.show(_v0._0));}
-            _E.Case($moduleName,
-            "on line 37, column 42 to 61");
-         }();
-      };
-      var needsFocus = function (act) {
-         return function () {
-            switch (act.ctor)
-            {case "EditingTask":
-               return act._1;}
-            return false;
-         }();
-      };
-      return A2(Signal._op["<~"],
-      toSelector,
-      A3(Signal.keepIf,
-      needsFocus,
-      A2(EditingTask,0,true),
-      actions.signal));
-   }());
-   var header = function (value) {
+   var taskEntry = function (value) {
       return A4(Html.node,
       "header",
       _L.fromArray([A2(Html._op[":="],
@@ -1990,7 +1974,7 @@ Elm.Main.make = function (_elm) {
                                    _L.fromArray([]),
                                    _L.fromArray([A2(Html.Events.onclick,
                                    actions.handle,
-                                   function (_v7) {
+                                   function (_v0) {
                                       return function () {
                                          return A2(Check,
                                          todo.id,
@@ -2004,14 +1988,14 @@ Elm.Main.make = function (_elm) {
                                    _L.fromArray([]),
                                    _L.fromArray([A2(Html.Events.ondblclick,
                                    actions.handle,
-                                   function (_v9) {
+                                   function (_v2) {
                                       return function () {
                                          return A2(EditingTask,
                                          todo.id,
                                          true);
                                       }();
                                    })]),
-                                   _L.fromArray([Html.text(todo.title)]))
+                                   _L.fromArray([Html.text(todo.description)]))
                                    ,A5(Html.eventNode,
                                    "button",
                                    _L.fromArray([A2(Html._op[":="],
@@ -2029,7 +2013,7 @@ Elm.Main.make = function (_elm) {
                                    "edit")
                                    ,A2(Html._op[":="],
                                    "value",
-                                   todo.title)
+                                   todo.description)
                                    ,A2(Html._op[":="],
                                    "name",
                                    "title")
@@ -2054,183 +2038,24 @@ Elm.Main.make = function (_elm) {
                       _L.fromArray([]))]));
       }();
    };
-   var routeSwap = F3(function (uri,
-   route,
-   actualRoute) {
-      return function () {
-         var className = _U.eq(route,
-         actualRoute) ? "selected" : "";
-         return A5(Html.eventNode,
-         "li",
-         _L.fromArray([]),
-         _L.fromArray([]),
-         _L.fromArray([A2(Html.Events.onclick,
-         actions.handle,
-         Basics.always(ChangeRoute(route)))]),
-         _L.fromArray([A4(Html.node,
-         "a",
-         _L.fromArray([A2(Html._op[":="],
-                      "className",
-                      className)
-                      ,A2(Html._op[":="],
-                      "href",
-                      uri)]),
-         _L.fromArray([]),
-         _L.fromArray([Html.text(String.show(route))]))]));
-      }();
-   });
-   var State = F4(function (a,
-   b,
-   c,
-   d) {
-      return {_: {}
-             ,field: c
-             ,guid: d
-             ,route: b
-             ,todos: a};
-   });
-   var Todo = F4(function (a,
-   b,
-   c,
-   d) {
-      return {_: {}
-             ,completed: a
-             ,editing: b
-             ,id: d
-             ,title: c};
-   });
-   var step = F2(function (action,
-   state) {
-      return function () {
-         switch (action.ctor)
-         {case "Add":
-            return function () {
-                 var newTodo = A4(Todo,
-                 false,
-                 false,
-                 state.field,
-                 state.guid);
-                 var newItems = String.isEmpty(state.field) ? _L.fromArray([]) : _L.fromArray([newTodo]);
-                 return _U.replace([["todos"
-                                    ,_L.append(state.todos,
-                                    newItems)]
-                                   ,["guid",state.guid + 1]
-                                   ,["field",""]],
-                 state);
-              }();
-            case "ChangeRoute":
-            return _U.replace([["route"
-                               ,action._0]],
-              state);
-            case "Check":
-            return function () {
-                 var update = function (t) {
-                    return _U.eq(t.id,
-                    action._0) ? _U.replace([["completed"
-                                             ,action._1]],
-                    t) : t;
-                 };
-                 return _U.replace([["todos"
-                                    ,A2(List.map,
-                                    update,
-                                    state.todos)]],
-                 state);
-              }();
-            case "CheckAll":
-            return function () {
-                 var update = function (t) {
-                    return _U.replace([["completed"
-                                       ,action._0]],
-                    t);
-                 };
-                 return _U.replace([["todos"
-                                    ,A2(List.map,
-                                    update,
-                                    state.todos)]],
-                 state);
-              }();
-            case "Delete":
-            return _U.replace([["todos"
-                               ,A2(List.filter,
-                               function (t) {
-                                  return !_U.eq(t.id,
-                                  action._0);
-                               },
-                               state.todos)]],
-              state);
-            case "DeleteComplete":
-            return _U.replace([["todos"
-                               ,A2(List.filter,
-                               function ($) {
-                                  return Basics.not(function (_) {
-                                     return _.completed;
-                                  }($));
-                               },
-                               state.todos)]],
-              state);
-            case "EditingTask":
-            return function () {
-                 var update = function (t) {
-                    return _U.eq(t.id,
-                    action._0) ? _U.replace([["editing"
-                                             ,action._1]],
-                    t) : t;
-                 };
-                 return _U.replace([["todos"
-                                    ,A2(List.map,
-                                    update,
-                                    state.todos)]],
-                 state);
-              }();
-            case "NoOp": return state;
-            case "UpdateField":
-            return _U.replace([["field"
-                               ,action._0]],
-              state);
-            case "UpdateTask":
-            return function () {
-                 var update = function (t) {
-                    return _U.eq(t.id,
-                    action._0) ? _U.replace([["title"
-                                             ,action._1]],
-                    t) : t;
-                 };
-                 return _U.replace([["todos"
-                                    ,A2(List.map,
-                                    update,
-                                    state.todos)]],
-                 state);
-              }();}
-         _E.Case($moduleName,
-         "between lines 57 and 95");
-      }();
-   });
-   var Active = {ctor: "Active"};
-   var Completed = {ctor: "Completed"};
-   var All = {ctor: "All"};
-   var state = {_: {}
-               ,field: ""
-               ,guid: 0
-               ,route: All
-               ,todos: _L.fromArray([])};
-   var mainSection = F2(function (route,
-   todos) {
+   var taskList = F2(function (visibility,
+   tasks) {
       return function () {
          var allCompleted = A2(List.all,
          function (_) {
             return _.completed;
          },
-         todos);
+         tasks);
          var isVisible = function (todo) {
             return function () {
-               switch (route.ctor)
-               {case "Active":
+               switch (visibility)
+               {case "active":
                   return Basics.not(todo.completed);
-                  case "All": return true;
-                  case "Completed":
+                  case "all": return true;
+                  case "completed":
                   return todo.completed;}
                _E.Case($moduleName,
-               "between lines 152 and 157");
+               "between lines 169 and 174");
             }();
          };
          return A4(Html.node,
@@ -2240,7 +2065,7 @@ Elm.Main.make = function (_elm) {
          "main")]),
          _L.fromArray([A2(Html._op[":="],
          "visibility",
-         List.isEmpty(todos) ? "hidden" : "visible")]),
+         List.isEmpty(tasks) ? "hidden" : "visible")]),
          _L.fromArray([A5(Html.eventNode,
                       "input",
                       _L.fromArray([A2(Html._op[":="],
@@ -2258,7 +2083,7 @@ Elm.Main.make = function (_elm) {
                       _L.fromArray([]),
                       _L.fromArray([A2(Html.Events.onclick,
                       actions.handle,
-                      function (_v23) {
+                      function (_v5) {
                          return function () {
                             return CheckAll(Basics.not(allCompleted));
                          }();
@@ -2281,18 +2106,43 @@ Elm.Main.make = function (_elm) {
                       todoItem,
                       A2(List.filter,
                       isVisible,
-                      todos)))]));
+                      tasks)))]));
       }();
    });
-   var statsSection = F2(function (route,
-   todos) {
+   var visibilitySwap = F3(function (uri,
+   visibility,
+   actualVisibility) {
       return function () {
-         var todosCompleted = List.length(A2(List.filter,
+         var className = _U.eq(visibility,
+         actualVisibility) ? "selected" : "";
+         return A5(Html.eventNode,
+         "li",
+         _L.fromArray([]),
+         _L.fromArray([]),
+         _L.fromArray([A2(Html.Events.onclick,
+         actions.handle,
+         Basics.always(ChangeVisibility(visibility)))]),
+         _L.fromArray([A4(Html.node,
+         "a",
+         _L.fromArray([A2(Html._op[":="],
+                      "className",
+                      className)
+                      ,A2(Html._op[":="],
+                      "href",
+                      uri)]),
+         _L.fromArray([]),
+         _L.fromArray([Html.text(visibility)]))]));
+      }();
+   });
+   var controls = F2(function (visibility,
+   tasks) {
+      return function () {
+         var tasksCompleted = List.length(A2(List.filter,
          function (_) {
             return _.completed;
          },
-         todos));
-         var todosLeft = List.length(todos) - todosCompleted;
+         tasks));
+         var tasksLeft = List.length(tasks) - tasksCompleted;
          return A4(Html.node,
          "footer",
          _L.fromArray([A2(Html._op[":="],
@@ -2300,7 +2150,7 @@ Elm.Main.make = function (_elm) {
                       "footer")
                       ,A2(Html.bool,
                       "hidden",
-                      List.isEmpty(todos))]),
+                      List.isEmpty(tasks))]),
          _L.fromArray([]),
          _L.fromArray([A4(Html.node,
                       "span",
@@ -2312,9 +2162,9 @@ Elm.Main.make = function (_elm) {
                                    "strong",
                                    _L.fromArray([]),
                                    _L.fromArray([]),
-                                   _L.fromArray([Html.text(String.show(todosLeft))]))
+                                   _L.fromArray([Html.text(String.show(tasksLeft))]))
                                    ,function () {
-                                      var item_ = _U.eq(todosLeft,
+                                      var item_ = _U.eq(tasksLeft,
                                       1) ? " item" : " items";
                                       return Html.text(_L.append(item_,
                                       " left"));
@@ -2325,20 +2175,20 @@ Elm.Main.make = function (_elm) {
                       "id",
                       "filters")]),
                       _L.fromArray([]),
-                      _L.fromArray([A3(routeSwap,
+                      _L.fromArray([A3(visibilitySwap,
                                    "#/",
-                                   All,
-                                   route)
+                                   "all",
+                                   visibility)
                                    ,Html.text(" ")
-                                   ,A3(routeSwap,
+                                   ,A3(visibilitySwap,
                                    "#/active",
-                                   Active,
-                                   route)
+                                   "active",
+                                   visibility)
                                    ,Html.text(" ")
-                                   ,A3(routeSwap,
+                                   ,A3(visibilitySwap,
                                    "#/completed",
-                                   Completed,
-                                   route)]))
+                                   "completed",
+                                   visibility)]))
                       ,A5(Html.eventNode,
                       "button",
                       _L.fromArray([A2(Html._op[":="],
@@ -2349,17 +2199,17 @@ Elm.Main.make = function (_elm) {
                                    "clear-completed")
                                    ,A2(Html.bool,
                                    "hidden",
-                                   _U.eq(todosCompleted,0))]),
+                                   _U.eq(tasksCompleted,0))]),
                       _L.fromArray([]),
                       _L.fromArray([A2(Html.Events.onclick,
                       actions.handle,
                       Basics.always(DeleteComplete))]),
                       _L.fromArray([Html.text(_L.append("Clear completed (",
-                      _L.append(String.show(todosCompleted),
+                      _L.append(String.show(tasksCompleted),
                       ")")))]))]));
       }();
    });
-   var render = function (state) {
+   var view = function (state) {
       return A4(Html.node,
       "div",
       _L.fromArray([A2(Html._op[":="],
@@ -2375,59 +2225,241 @@ Elm.Main.make = function (_elm) {
                    "todoapp")]),
                    _L.fromArray([]),
                    _L.fromArray([A2(Html.Optimize.RefEq.lazy,
-                                header,
+                                taskEntry,
                                 state.field)
                                 ,A3(Html.Optimize.RefEq.lazy2,
-                                mainSection,
-                                state.route,
-                                state.todos)
+                                taskList,
+                                state.visibility,
+                                state.tasks)
                                 ,A3(Html.Optimize.RefEq.lazy2,
-                                statsSection,
-                                state.route,
-                                state.todos)]))
+                                controls,
+                                state.visibility,
+                                state.tasks)]))
                    ,infoFooter]));
    };
    var scene = F2(function (state,
-   _v25) {
+   _v7) {
       return function () {
-         switch (_v25.ctor)
+         switch (_v7.ctor)
          {case "_Tuple2":
             return A4(Graphics.Element.container,
-              _v25._0,
-              _v25._1,
+              _v7._0,
+              _v7._1,
               Graphics.Element.midTop,
               A3(Html.toElement,
               550,
-              _v25._1,
-              render(state)));}
+              _v7._1,
+              view(state)));}
          _E.Case($moduleName,
-         "on line 108, column 5 to 61");
+         "on line 296, column 5 to 59");
       }();
    });
+   var focus = Native.Ports.portOut("focus",
+   Native.Ports.outgoingSignal(function (v) {
+      return v;
+   }),
+   function () {
+      var toSelector = function (_v11) {
+         return function () {
+            switch (_v11.ctor)
+            {case "EditingTask":
+               return _L.append("#todo-",
+                 String.show(_v11._0));}
+            _E.Case($moduleName,
+            "on line 316, column 42 to 61");
+         }();
+      };
+      var needsFocus = function (act) {
+         return function () {
+            switch (act.ctor)
+            {case "EditingTask":
+               return act._1;}
+            return false;
+         }();
+      };
+      return A2(Signal._op["<~"],
+      toSelector,
+      A3(Signal.keepIf,
+      needsFocus,
+      A2(EditingTask,0,true),
+      actions.signal));
+   }());
+   var emptyState = {_: {}
+                    ,field: ""
+                    ,tasks: _L.fromArray([])
+                    ,uid: 0
+                    ,visibility: "all"};
+   var startingState = A3(Maybe.maybe,
+   emptyState,
+   Basics.id,
+   getStorage);
+   var newTask = F2(function (desc,
+   id) {
+      return {_: {}
+             ,completed: false
+             ,description: desc
+             ,editing: false
+             ,id: id};
+   });
+   var step = F2(function (action,
+   state) {
+      return function () {
+         switch (action.ctor)
+         {case "Add":
+            return _U.replace([["uid"
+                               ,state.uid + 1]
+                              ,["field",""]
+                              ,["tasks"
+                               ,String.isEmpty(state.field) ? state.tasks : _L.append(state.tasks,
+                               _L.fromArray([A2(newTask,
+                               state.field,
+                               state.uid)]))]],
+              state);
+            case "ChangeVisibility":
+            return _U.replace([["visibility"
+                               ,action._0]],
+              state);
+            case "Check":
+            return function () {
+                 var update = function (t) {
+                    return _U.eq(t.id,
+                    action._0) ? _U.replace([["completed"
+                                             ,action._1]],
+                    t) : t;
+                 };
+                 return _U.replace([["tasks"
+                                    ,A2(List.map,
+                                    update,
+                                    state.tasks)]],
+                 state);
+              }();
+            case "CheckAll":
+            return function () {
+                 var update = function (t) {
+                    return _U.replace([["completed"
+                                       ,action._0]],
+                    t);
+                 };
+                 return _U.replace([["tasks"
+                                    ,A2(List.map,
+                                    update,
+                                    state.tasks)]],
+                 state);
+              }();
+            case "Delete":
+            return _U.replace([["tasks"
+                               ,A2(List.filter,
+                               function (t) {
+                                  return !_U.eq(t.id,
+                                  action._0);
+                               },
+                               state.tasks)]],
+              state);
+            case "DeleteComplete":
+            return _U.replace([["tasks"
+                               ,A2(List.filter,
+                               function ($) {
+                                  return Basics.not(function (_) {
+                                     return _.completed;
+                                  }($));
+                               },
+                               state.tasks)]],
+              state);
+            case "EditingTask":
+            return function () {
+                 var update = function (t) {
+                    return _U.eq(t.id,
+                    action._0) ? _U.replace([["editing"
+                                             ,action._1]],
+                    t) : t;
+                 };
+                 return _U.replace([["tasks"
+                                    ,A2(List.map,
+                                    update,
+                                    state.tasks)]],
+                 state);
+              }();
+            case "NoOp": return state;
+            case "UpdateField":
+            return _U.replace([["field"
+                               ,action._0]],
+              state);
+            case "UpdateTask":
+            return function () {
+                 var update = function (t) {
+                    return _U.eq(t.id,
+                    action._0) ? _U.replace([["description"
+                                             ,action._1]],
+                    t) : t;
+                 };
+                 return _U.replace([["tasks"
+                                    ,A2(List.map,
+                                    update,
+                                    state.tasks)]],
+                 state);
+              }();}
+         _E.Case($moduleName,
+         "between lines 85 and 122");
+      }();
+   });
+   var state = A3(Signal.foldp,
+   step,
+   startingState,
+   actions.signal);
    var main = A3(Signal.lift2,
    scene,
-   A3(Signal.foldp,
-   step,
    state,
-   actions.signal),
    Window.dimensions);
-   _elm.Main.values = {_op: _op
-                      ,actions: actions
+   var setStorage = Native.Ports.portOut("setStorage",
+   Native.Ports.outgoingSignal(function (v) {
+      return {field: v.field
+             ,uid: v.uid
+             ,visibility: v.visibility
+             ,tasks: _L.toArray(v.tasks).map(function (v) {
+                return {description: v.description
+                       ,completed: v.completed
+                       ,editing: v.editing
+                       ,id: v.id};
+             })};
+   }),
+   state);
+   var Task = F4(function (a,
+   b,
+   c,
+   d) {
+      return {_: {}
+             ,completed: b
+             ,description: a
+             ,editing: c
+             ,id: d};
+   });
+   var State = F4(function (a,
+   b,
+   c,
+   d) {
+      return {_: {}
+             ,field: b
+             ,tasks: a
+             ,uid: c
+             ,visibility: d};
+   });
+   _elm.Todo.values = {_op: _op
+                      ,newTask: newTask
+                      ,emptyState: emptyState
                       ,step: step
-                      ,state: state
+                      ,view: view
+                      ,onEnter: onEnter
+                      ,taskEntry: taskEntry
+                      ,taskList: taskList
+                      ,todoItem: todoItem
+                      ,controls: controls
+                      ,visibilitySwap: visibilitySwap
+                      ,infoFooter: infoFooter
                       ,main: main
                       ,scene: scene
-                      ,render: render
-                      ,onEnter: onEnter
-                      ,header: header
-                      ,mainSection: mainSection
-                      ,todoItem: todoItem
-                      ,statsSection: statsSection
-                      ,routeSwap: routeSwap
-                      ,infoFooter: infoFooter
-                      ,All: All
-                      ,Completed: Completed
-                      ,Active: Active
+                      ,state: state
+                      ,startingState: startingState
+                      ,actions: actions
                       ,NoOp: NoOp
                       ,UpdateField: UpdateField
                       ,EditingTask: EditingTask
@@ -2437,10 +2469,10 @@ Elm.Main.make = function (_elm) {
                       ,DeleteComplete: DeleteComplete
                       ,Check: Check
                       ,CheckAll: CheckAll
-                      ,ChangeRoute: ChangeRoute
-                      ,Todo: Todo
-                      ,State: State};
-   return _elm.Main.values;
+                      ,ChangeVisibility: ChangeVisibility
+                      ,State: State
+                      ,Task: Task};
+   return _elm.Todo.values;
 };Elm.Html = Elm.Html || {};
 Elm.Html.Optimize = Elm.Html.Optimize || {};
 Elm.Html.Optimize.RefEq = Elm.Html.Optimize.RefEq || {};
