@@ -26,7 +26,6 @@ import Window
 
 import Graphics.Input (..)
 import Graphics.Input as Input
-import Debug
 
 
 ---- MODEL ----
@@ -167,7 +166,7 @@ taskEntry value =
 taskList : String -> [Task] -> Html
 taskList visibility tasks =
     let isVisible todo =
-            case Debug.log "visibility" visibility of
+            case visibility of
               "completed" -> todo.completed
               "active" -> not todo.completed
               "all" -> True
