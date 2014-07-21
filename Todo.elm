@@ -80,7 +80,7 @@ data Action
     | CheckAll Bool
     | ChangeVisibility Visibility
 
--- How to we step the state forward for any given action
+-- How we step the state forward for any given action
 step : Action -> State -> State
 step action state =
     case action of
