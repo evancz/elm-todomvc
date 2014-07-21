@@ -2049,10 +2049,10 @@ Elm.Todo.make = function (_elm) {
          var isVisible = function (todo) {
             return function () {
                switch (visibility)
-               {case "active":
+               {case "Active":
                   return Basics.not(todo.completed);
-                  case "all": return true;
-                  case "completed":
+                  case "All": return true;
+                  case "Completed":
                   return todo.completed;}
                _E.Case($moduleName,
                "between lines 169 and 174");
@@ -2177,17 +2177,17 @@ Elm.Todo.make = function (_elm) {
                       _L.fromArray([]),
                       _L.fromArray([A3(visibilitySwap,
                                    "#/",
-                                   "all",
+                                   "All",
                                    visibility)
                                    ,Html.text(" ")
                                    ,A3(visibilitySwap,
                                    "#/active",
-                                   "active",
+                                   "Active",
                                    visibility)
                                    ,Html.text(" ")
                                    ,A3(visibilitySwap,
                                    "#/completed",
-                                   "completed",
+                                   "Completed",
                                    visibility)]))
                       ,A5(Html.eventNode,
                       "button",
@@ -2288,7 +2288,7 @@ Elm.Todo.make = function (_elm) {
                     ,field: ""
                     ,tasks: _L.fromArray([])
                     ,uid: 0
-                    ,visibility: "all"};
+                    ,visibility: "All"};
    var startingState = A3(Maybe.maybe,
    emptyState,
    Basics.id,
