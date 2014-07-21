@@ -56,7 +56,7 @@ newTask desc id =
 emptyState : State
 emptyState =
     { tasks = []
-    , visibility = "all"
+    , visibility = "All"
     , field = ""
     , uid = 0
     }
@@ -167,9 +167,9 @@ taskList : String -> [Task] -> Html
 taskList visibility tasks =
     let isVisible todo =
             case visibility of
-              "completed" -> todo.completed
-              "active" -> not todo.completed
-              "all" -> True
+              "Completed" -> todo.completed
+              "Active" -> not todo.completed
+              "All" -> True
 
         allCompleted = all .completed tasks
     in
@@ -244,11 +244,11 @@ controls visibility tasks =
             in  text (item_ ++ " left")
           ]
       , node "ul" [ "id" := "filters" ] []
-          [ visibilitySwap "#/"          "all"       visibility
+          [ visibilitySwap "#/"          "All"       visibility
           , text " "
-          , visibilitySwap "#/active"    "active"    visibility
+          , visibilitySwap "#/active"    "Active"    visibility
           , text " "
-          , visibilitySwap "#/completed" "completed" visibility
+          , visibilitySwap "#/completed" "Completed" visibility
           ]
       , eventNode "button"
           [ "className" := "clear-completed"
