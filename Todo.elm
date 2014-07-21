@@ -21,10 +21,12 @@ import Html
 import Html (..)
 import Html.Events (..)
 import Html.Optimize.RefEq as Ref
+import Maybe
 import Window
 
 import Graphics.Input (..)
 import Graphics.Input as Input
+import Debug
 
 
 ---- MODEL ----
@@ -34,10 +36,8 @@ type State =
     { tasks      : [Task]
     , field      : String
     , uid        : Int
-    , visibility : Visibility
+    , visibility : String
     }
-
-data Visibility = All | Completed | Active
 
 type Task =
     { description : String
@@ -54,10 +54,10 @@ newTask desc id =
     , id = id
     }
 
-startingState : State
-startingState =
+emptyState : State
+emptyState =
     { tasks = []
-    , visibility = All
+    , visibility = "all"
     , field = ""
     , uid = 0
     }
@@ -78,7 +78,7 @@ data Action
     | DeleteComplete
     | Check Int Bool
     | CheckAll Bool
-    | ChangeVisibility Visibility
+    | ChangeVisibility String
 
 -- How we step the state forward for any given action
 step : Action -> State -> State
@@ -164,13 +164,13 @@ taskEntry value =
           []
       ]
 
-taskList : Visibility -> [Task] -> Html
+taskList : String -> [Task] -> Html
 taskList visibility tasks =
     let isVisible todo =
-            case visibility of
-              Completed -> todo.completed
-              Active -> not todo.completed
-              All -> True
+            case Debug.log "visibility" visibility of
+              "completed" -> todo.completed
+              "active" -> not todo.completed
+              "all" -> True
 
         allCompleted = all .completed tasks
     in
@@ -233,7 +233,7 @@ todoItem todo =
           []
       ]
 
-controls : Visibility -> [Task] -> Html
+controls : String -> [Task] -> Html
 controls visibility tasks =
     let tasksCompleted = length (filter .completed tasks)
         tasksLeft = length tasks - tasksCompleted
@@ -245,11 +245,11 @@ controls visibility tasks =
             in  text (item_ ++ " left")
           ]
       , node "ul" [ "id" := "filters" ] []
-          [ visibilitySwap "#/"          All       visibility
+          [ visibilitySwap "#/"          "all"       visibility
           , text " "
-          , visibilitySwap "#/active"    Active    visibility
+          , visibilitySwap "#/active"    "active"    visibility
           , text " "
-          , visibilitySwap "#/completed" Completed visibility
+          , visibilitySwap "#/completed" "completed" visibility
           ]
       , eventNode "button"
           [ "className" := "clear-completed"
@@ -261,12 +261,12 @@ controls visibility tasks =
           [ text ("Clear completed (" ++ show tasksCompleted ++ ")") ]
       ]
 
-visibilitySwap : String -> Visibility -> Visibility -> Html
+visibilitySwap : String -> String -> String -> Html
 visibilitySwap uri visibility actualVisibility =
     let className = if visibility == actualVisibility then "selected" else "" in
     eventNode "li" [] []
       [ onclick actions.handle (always (ChangeVisibility visibility)) ]
-      [ node "a" [ "className" := className, "href" := uri ] [] [ text (show visibility) ]
+      [ node "a" [ "className" := className, "href" := uri ] [] [ text visibility ]
       ]
 
 infoFooter : Html
@@ -292,14 +292,18 @@ infoFooter =
 main : Signal Element
 main = lift2 scene state Window.dimensions
 
--- the state of our application over time
-state : Signal State
-state = foldp step startingState actions.signal
-
 scene : State -> (Int,Int) -> Element
 scene state (w,h) =
     container w h midTop (Html.toElement 550 h (view state))
 
+-- manage the state of our application over time
+state : Signal State
+state = foldp step startingState actions.signal
+
+startingState : State
+startingState = Maybe.maybe emptyState id getStorage
+
+-- actions from user input
 actions : Input Action
 actions = Input.input NoOp
 
@@ -314,6 +318,10 @@ port focus =
     in
         toSelector <~ keepIf needsFocus (EditingTask 0 True) actions.signal
 
--- I know why you are here... It is less than 270 lines without comments ;)
--- That's pretty short, but the architecture stuff discussed at the top is
--- probably more important.
+-- interactions with localStorage to save app state (type alias support coming soon!)
+port getStorage : Maybe { field:String, uid:Int, visibility:String
+                        , tasks : [{ description:String, completed:Bool, editing:Bool, id:Int }] }
+
+port setStorage : Signal { field:String, uid:Int, visibility:String
+                         , tasks : [{ description:String, completed:Bool, editing:Bool, id:Int }] }
+port setStorage = state

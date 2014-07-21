@@ -13,7 +13,10 @@
 </body>
 
 <script type="text/javascript">
-var todomvc = Elm.fullscreen(Elm.Todo);
+var storedState = localStorage.getItem('todos-elm');
+var startingState = storedState ? JSON.parse(storedState) : null;
+
+var todomvc = Elm.fullscreen(Elm.Todo, { getStorage: startingState });
 todomvc.ports.focus.subscribe(function(selector) {
     setTimeout(function() {
         var nodes = document.querySelectorAll(selector);
@@ -22,6 +25,11 @@ todomvc.ports.focus.subscribe(function(selector) {
             nodes[0].focus()
         }
     }, 50);
+});
+
+todomvc.ports.setStorage.subscribe(function(state) {
+    console.log(state);
+    localStorage.setItem('todos-elm', JSON.stringify(state));
 });
 
 </script>
