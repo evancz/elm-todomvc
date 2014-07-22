@@ -1479,6 +1479,7 @@ Elm.Native.Html.make = function(elm) {
     // This manages event listeners. Somehow...
     Delegator();
 
+    var RenderUtils = ElmRuntime.use(ElmRuntime.Render.Utils);
     var newElement = Elm.Graphics.Element.make(elm).newElement;
     var Utils = Elm.Native.Utils.make(elm);
     var List = Elm.Native.List.make(elm);
@@ -1616,15 +1617,24 @@ Elm.Native.Html.make = function(elm) {
         return A3(newElement, width, height,
                   { ctor: 'Custom'
                   , type: 'evancz/elm-html'
-                  , render: createElement
+                  , render: render
                   , update: update
                   , model: html
                   });
     }
 
+    function render(model) {
+        var element = RenderUtils.newElement('div');
+        element.appendChild(createElement(model));
+        return element;
+    }
+
     function update(node, oldModel, newModel) {
         var patches = diff(oldModel, newModel);
-        node = patch(node, patches);
+        var newNode = patch(node.firstChild, patches)
+        if (newNode !== node.firstChild) {
+            node.replaceChild(newNode, node.firstChild)
+        }
     }
 
     function lazyRef(fn, a) {
@@ -2740,9 +2750,7 @@ Elm.Html.Events.make = function (_elm) {
    });
    var EventListener = {ctor: "EventListener"};
    _elm.Html.Events.values = {_op: _op
-                             ,EventListener: EventListener
-                             ,MouseEvent: MouseEvent
-                             ,KeyboardEvent: KeyboardEvent
+                             ,onMouse: onMouse
                              ,onclick: onclick
                              ,ondblclick: ondblclick
                              ,onmousemove: onmousemove
@@ -2752,6 +2760,7 @@ Elm.Html.Events.make = function (_elm) {
                              ,onmouseleave: onmouseleave
                              ,onmouseover: onmouseover
                              ,onmouseout: onmouseout
+                             ,onKey: onKey
                              ,onkeyup: onkeyup
                              ,onkeydown: onkeydown
                              ,onkeypress: onkeypress
@@ -2759,15 +2768,19 @@ Elm.Html.Events.make = function (_elm) {
                              ,onfocus: onfocus
                              ,onsubmit: onsubmit
                              ,on: on
+                             ,when: when
+                             ,filterMap: filterMap
                              ,getChecked: getChecked
                              ,getValue: getValue
                              ,getValueAndSelection: getValueAndSelection
-                             ,Forward: Forward
-                             ,Backward: Backward
                              ,getMouseEvent: getMouseEvent
                              ,getKeyboardEvent: getKeyboardEvent
                              ,getAnything: getAnything
-                             ,when: when
-                             ,filterMap: filterMap};
+                             ,EventListener: EventListener
+                             ,Get: Get
+                             ,Forward: Forward
+                             ,Backward: Backward
+                             ,MouseEvent: MouseEvent
+                             ,KeyboardEvent: KeyboardEvent};
    return _elm.Html.Events.values;
 };
