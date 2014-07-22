@@ -6,7 +6,7 @@
     "exposed-modules": [],
     "elm-version": "0.12.3",
     "dependencies": {
-        "evancz/elm-html": "0.1"
+        "evancz/elm-html": "0.1.2"
     },
     "repository": "https://github.com/evancz/elm-todomvc.git"
 }
