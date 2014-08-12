@@ -315,7 +315,7 @@ port focus =
     in
         toSelector <~ keepIf needsFocus (EditingTask 0 True) actions.signal
 
--- interactions with localStorage to save app state (type alias support coming soon!)
+-- interactions with localStorage to save app state
 port getStorage : Maybe State
 
 port setStorage : Signal State
