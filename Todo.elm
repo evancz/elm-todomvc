@@ -17,14 +17,15 @@ https://gist.github.com/evancz/2b2ba366cae1887fe621
 -}
 
 import String
-import Html
 import Html (..)
+import Html.Attributes (..)
 import Html.Events (..)
+import Html.Tags (..)
 import Html.Optimize.RefEq as Ref
 import Maybe
 import Window
 
-import Graphics.Input (..)
+import Graphics.Input
 import Graphics.Input as Input
 
 
@@ -126,12 +127,12 @@ step action state =
 
 view : State -> Html
 view state =
-    node "div"
-      [ "className" := "todomvc-wrapper" ]
-      [ "visibility" := "hidden" ]
-      [ node "section"
-          [ "id" := "todoapp" ]
-          []
+    div
+      [ class "todomvc-wrapper"
+      , style [ prop "visibility" "hidden" ]
+      ]
+      [ section
+          [ id "todoapp" ]
           [ Ref.lazy taskEntry state.field
           , Ref.lazy2 taskList state.visibility state.tasks
           , Ref.lazy2 controls state.visibility state.tasks
@@ -139,25 +140,22 @@ view state =
       , infoFooter
       ]
 
-onEnter : Handle a -> a -> EventListener
+onEnter : Input.Handle a -> a -> Attribute
 onEnter handle value =
     on "keydown" (when (\k -> k.keyCode == 13) getKeyboardEvent) handle (always value)
 
 taskEntry : String -> Html
-taskEntry value =
-    node "header" 
-      [ "id" := "header" ]
-      []
-      [ node "h1" [] [] [ text "todos" ]
-      , eventNode "input"
-          [ "id"          := "new-todo"
-          , "placeholder" := "What needs to be done?"
-          , "autofocus"   := "true"
-          , "value"       := value
-          , "name"        := "newTodo"
-          ]
-          []
-          [ on "input" getValue actions.handle UpdateField
+taskEntry task =
+    header 
+      [ id "header" ]
+      [ h1 [] [ text "todos" ]
+      , input
+          [ id "new-todo"
+          , placeholder "What needs to be done?"
+          , autofocus True
+          , value task
+          , name "newTodo"
+          , on "input" getValue actions.handle UpdateField
           , onEnter actions.handle Add
           ]
           []
@@ -172,26 +170,26 @@ taskList visibility tasks =
               "All" -> True
 
         allCompleted = all .completed tasks
+
+        cssVisibility = if isEmpty tasks then "hidden" else "visible"
     in
-    node "section"
-      [ "id" := "main" ]
-      [ "visibility" := if isEmpty tasks then "hidden" else "visible" ]
-      [ eventNode "input"
-          [ "id" := "toggle-all"
-          , "type" := "checkbox"
-          , "name" := "toggle"
-          , bool "checked" allCompleted
+    section
+      [ id "main"
+      , style [ prop "visibility" cssVisibility ]
+      ]
+      [ input
+          [ id "toggle-all"
+          , type' "checkbox"
+          , name "toggle"
+          , checked allCompleted
+          , onclick actions.handle (\_ -> CheckAll (not allCompleted))
           ]
           []
-          [ onclick actions.handle (\_ -> CheckAll (not allCompleted)) ]
-          []
-      , node "label"
-          [ "htmlFor" := "toggle-all" ]
-          []
+      , label
+          [ for "toggle-all" ]
           [ text "Mark all as complete" ]
-      , node "ul"
-          [ "id" := "todo-list" ]
-          []
+      , ul
+          [ id "todo-list" ]
           (map todoItem (filter isVisible tasks))
       ]
 
@@ -201,31 +199,32 @@ todoItem todo =
                     (if todo.editing   then "editing"    else "")
     in
 
-    node "li" [ "className" := className ] []
-      [ node "div" [ "className" := "view" ] []
-          [ eventNode "input"
-              [ "className" := "toggle"
-              , "type" := "checkbox"
-              , bool "checked" todo.completed
+    li
+      [ class className ]
+      [ div
+          [ class "view" ]
+          [ input
+              [ class "toggle"
+              , type' "checkbox"
+              , checked todo.completed
+              , onclick actions.handle (\_ -> Check todo.id (not todo.completed))
               ]
               []
-              [ onclick actions.handle (\_ -> Check todo.id (not todo.completed)) ]
-              []
-          , eventNode "label" [] []
+          , label
               [ ondblclick actions.handle (\_ -> EditingTask todo.id True) ]
               [ text todo.description ]
-          , eventNode "button" [ "className" := "destroy" ] []
-              [ onclick actions.handle (always (Delete todo.id)) ] []
-
+          , button
+              [ class "destroy"
+              , onclick actions.handle (always (Delete todo.id))
+              ]
+              []
           ]
-      , eventNode "input"
-          [ "className" := "edit"
-          , "value" := todo.description
-          , "name" := "title"
-          , "id" := ("todo-" ++ show todo.id)
-          ]
-          []
-          [ on "input" getValue actions.handle (UpdateTask todo.id)
+      , input
+          [ class "edit"
+          , value todo.description
+          , name "title"
+          , id ("todo-" ++ show todo.id)
+          , on "input" getValue actions.handle (UpdateTask todo.id)
           , onblur actions.handle (EditingTask todo.id False)
           , onEnter actions.handle (EditingTask todo.id False)
           ]
@@ -236,52 +235,51 @@ controls : String -> [Task] -> Html
 controls visibility tasks =
     let tasksCompleted = length (filter .completed tasks)
         tasksLeft = length tasks - tasksCompleted
+        item_ = if tasksLeft == 1 then " item" else " items"
     in
-    node "footer" [ "id" := "footer", bool "hidden" (isEmpty tasks) ] []
-      [ node "span" [ "id" := "todo-count" ] []
-          [ node "strong" [] [] [ text (show tasksLeft) ]
-          , let item_ = if tasksLeft == 1 then " item" else " items"
-            in  text (item_ ++ " left")
+    footer
+      [ id "footer"
+      , hidden (isEmpty tasks)
+      ]
+      [ span
+          [ id "todo-count" ]
+          [ strong [] [ text (show tasksLeft) ]
+          , text (item_ ++ " left")
           ]
-      , node "ul" [ "id" := "filters" ] []
-          [ visibilitySwap "#/"          "All"       visibility
+      , ul
+          [ id "filters" ]
+          [ visibilitySwap "#/" "All" visibility
           , text " "
-          , visibilitySwap "#/active"    "Active"    visibility
+          , visibilitySwap "#/active" "Active" visibility
           , text " "
           , visibilitySwap "#/completed" "Completed" visibility
           ]
-      , eventNode "button"
-          [ "className" := "clear-completed"
-          , "id" := "clear-completed"
-          , bool "hidden" (tasksCompleted == 0)
+      , button
+          [ class "clear-completed"
+          , id "clear-completed"
+          , hidden (tasksCompleted == 0)
+          , onclick actions.handle (always DeleteComplete)
           ]
-          []
-          [ onclick actions.handle (always DeleteComplete) ]
           [ text ("Clear completed (" ++ show tasksCompleted ++ ")") ]
       ]
 
 visibilitySwap : String -> String -> String -> Html
 visibilitySwap uri visibility actualVisibility =
     let className = if visibility == actualVisibility then "selected" else "" in
-    eventNode "li" [] []
+    li
       [ onclick actions.handle (always (ChangeVisibility visibility)) ]
-      [ node "a" [ "className" := className, "href" := uri ] [] [ text visibility ]
-      ]
+      [ a [ class className, href uri ] [ text visibility ] ]
 
 infoFooter : Html
 infoFooter =
-    node "footer" [ "id" := "info" ] []
-      [ node "p" [] []
-          [ text "Double-click to edit a todo"
-          ]
-      , node "p" [] []
-          [ text "Written by "
-          , node "a" [ "href" := "https://github.com/evancz" ] [] [ text "Evan Czaplicki" ]
-          ]
-      , node "p" [] []
-          [ text "Part of "
-          , node "a" [ "href" := "http://todomvc.com" ] [] [ text "TodoMVC" ]
-          ]
+    footer [ id "info" ]
+      [ p [] [ text "Double-click to edit a todo" ]
+      , p [] [ text "Written by "
+             , a [ href "https://github.com/evancz" ] [ text "Evan Czaplicki" ]
+             ]
+      , p [] [ text "Part of "
+             , a [ href "http://todomvc.com" ] [ text "TodoMVC" ]
+             ]
       ]
 
 
@@ -293,17 +291,17 @@ main = lift2 scene state Window.dimensions
 
 scene : State -> (Int,Int) -> Element
 scene state (w,h) =
-    container w h midTop (Html.toElement 550 h (view state))
+    container w h midTop (toElement 550 h (view state))
 
 -- manage the state of our application over time
 state : Signal State
 state = foldp step startingState actions.signal
 
 startingState : State
-startingState = Maybe.maybe emptyState id getStorage
+startingState = Maybe.maybe emptyState identity getStorage
 
 -- actions from user input
-actions : Input Action
+actions : Input.Input Action
 actions = Input.input NoOp
 
 port focus : Signal String
