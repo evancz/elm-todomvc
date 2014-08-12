@@ -316,9 +316,7 @@ port focus =
         toSelector <~ keepIf needsFocus (EditingTask 0 True) actions.signal
 
 -- interactions with localStorage to save app state (type alias support coming soon!)
-port getStorage : Maybe { field:String, uid:Int, visibility:String
-                        , tasks : [{ description:String, completed:Bool, editing:Bool, id:Int }] }
+port getStorage : Maybe State
 
-port setStorage : Signal { field:String, uid:Int, visibility:String
-                         , tasks : [{ description:String, completed:Bool, editing:Bool, id:Int }] }
+port setStorage : Signal State
 port setStorage = state
