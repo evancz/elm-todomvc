@@ -18,9 +18,7 @@ https://gist.github.com/evancz/2b2ba366cae1887fe621
 
 import String
 import Html (..)
-import Html.Attributes (..)
 import Html.Events (..)
-import Html.Tags (..)
 import Html.Optimize.RefEq as Ref
 import Maybe
 import Window
