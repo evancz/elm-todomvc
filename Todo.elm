@@ -300,7 +300,7 @@ state : Signal State
 state = foldp step startingState actions.signal
 
 startingState : State
-startingState = Maybe.maybe emptyState id getStorage
+startingState = Maybe.maybe emptyState identity getStorage
 
 -- actions from user input
 actions : Input Action
