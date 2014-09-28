@@ -108,7 +108,7 @@ step action state =
           { state | tasks <- filter (\t -> t.id /= id) state.tasks }
 
       DeleteComplete ->
-          { state | tasks <- filter (not . .completed) state.tasks }
+          { state | tasks <- filter (not << .completed) state.tasks }
 
       Check id isCompleted ->
           let update t = if t.id == id then { t | completed <- isCompleted } else t
@@ -300,7 +300,7 @@ state : Signal State
 state = foldp step startingState actions.signal
 
 startingState : State
-startingState = Maybe.maybe emptyState id getStorage
+startingState = Maybe.maybe emptyState identity getStorage
 
 -- actions from user input
 actions : Input Action
