@@ -1467,6 +1467,7 @@ var patch = require('virtual-dom/patch');
 var createElement = require('virtual-dom/create-element');
 var DataSet = require("data-set");
 var Delegator = require("dom-delegator");
+var isHook = require("vtree/is-vhook");
 
 Elm.Native.Html = {};
 Elm.Native.Html.make = function(elm) {
@@ -1486,37 +1487,42 @@ Elm.Native.Html.make = function(elm) {
     var Maybe = Elm.Maybe.make(elm);
     var eq = Elm.Native.Utils.make(elm).eq;
 
-    function node(name, attributes, properties, contents) {
-        return eventNode(name, attributes, properties, List.Nil, contents);
+    function listToObject(list) {
+        var object = {};
+        while (list.ctor !== '[]') {
+            var entry = list._0;
+            object[entry.key] = entry.value;
+            list = list._1;
+        }
+        return object;
     }
 
-    function eventNode(name, attributes, properties, handlers, contents) {
-        var attrs = {};
-        while (attributes.ctor !== '[]') {
-            var attribute = attributes._0;
-            attrs[attribute.key] = attribute.value;
-            attributes = attributes._1;
+    function node(name, attributes, contents) {
+        var attrs = listToObject(attributes);
+
+        // ensure that setting text of an input does not move the cursor
+        var useSoftSet =
+            name === 'input'
+            && 'value' in attrs
+            && attrs.value !== undefined
+            && !isHook(attrs.value);
+
+        if (useSoftSet) {
+            attrs.value = SoftSetHook(attrs.value);
         }
-        var props = {};
-        while (properties.ctor !== '[]') {
-            var property = properties._0;
-            props[property.key] = property.value;
-            properties = properties._1;
-        }
-        attrs.style = props;
-        while (handlers.ctor !== '[]') {
-            var handler = handlers._0;
-            attrs[handler.eventName] = DataSetHook(handler.eventHandler);
-            handlers = handlers._1;
-        }
+
         return new VNode(name, attrs, List.toArray(contents));
     }
 
-    function pair(key,value) {
+    function pair(key, value) {
         return {
             key: key,
             value: value
         };
+    }
+
+    function style(properties) {
+        return pair('style', listToObject(properties));
     }
 
     function on(name, coerce) {
@@ -1527,10 +1533,7 @@ Elm.Native.Html.make = function(elm) {
                     elm.notify(handle.id, convert(value._0));
                 }
             }
-            return {
-                eventName: name,
-                eventHandler: eventHandler
-            };                
+            return pair(name, DataSetHook(eventHandler));
         }
         return F2(createListener);
     }
@@ -1607,6 +1610,21 @@ Elm.Native.Html.make = function(elm) {
     DataSetHook.prototype.hook = function (node, propertyName) {
         var ds = DataSet(node);
         ds[propertyName] = this.value;
+    };
+
+
+    function SoftSetHook(value) {
+      if (!(this instanceof SoftSetHook)) {
+        return new SoftSetHook(value);
+      }
+
+      this.value = value;
+    }
+
+    SoftSetHook.prototype.hook = function (node, propertyName) {
+      if (node[propertyName] !== this.value) {
+        node[propertyName] = this.value;
+      }
     };
 
     function text(string) {
@@ -1750,9 +1768,9 @@ Elm.Native.Html.make = function(elm) {
     }
 
     return Elm.Native.Html.values = {
-        node: F4(node),
-        eventNode: F5(eventNode),
+        node: F3(node),
         text: text,
+        style: style,
         on: F2(on),
 
         pair: F2(pair),
@@ -1775,7 +1793,7 @@ Elm.Native.Html.make = function(elm) {
     };
 };
 
-},{"data-set":2,"dom-delegator":8,"virtual-dom/create-element":15,"virtual-dom/diff":16,"virtual-dom/patch":20,"vtree/vnode":38,"vtree/vtext":39}],41:[function(require,module,exports){
+},{"data-set":2,"dom-delegator":8,"virtual-dom/create-element":15,"virtual-dom/diff":16,"virtual-dom/patch":20,"vtree/is-vhook":34,"vtree/vnode":38,"vtree/vtext":39}],41:[function(require,module,exports){
 
 },{}]},{},[40]);
 Elm.Todo = Elm.Todo || {};
@@ -1784,98 +1802,70 @@ Elm.Todo.make = function (_elm) {
    _elm.Todo = _elm.Todo || {};
    if (_elm.Todo.values)
    return _elm.Todo.values;
-   var _N = Elm.Native,
+   var _op = {},
+   _N = Elm.Native,
    _U = _N.Utils.make(_elm),
    _L = _N.List.make(_elm),
    _A = _N.Array.make(_elm),
    _E = _N.Error.make(_elm),
-   $moduleName = "Todo";
-   var Basics = Elm.Basics.make(_elm);
-   var Color = Elm.Color.make(_elm);
-   var Graphics = Graphics || {};
-   Graphics.Collage = Elm.Graphics.Collage.make(_elm);
-   var Graphics = Graphics || {};
-   Graphics.Element = Elm.Graphics.Element.make(_elm);
-   var Graphics = Graphics || {};
-   Graphics.Input = Elm.Graphics.Input.make(_elm);
-   var Html = Elm.Html.make(_elm);
-   var Html = Html || {};
-   Html.Events = Elm.Html.Events.make(_elm);
-   var Html = Html || {};
-   Html.Optimize = Html.Optimize || {};
-   Html.Optimize.RefEq = Elm.Html.Optimize.RefEq.make(_elm);
-   var List = Elm.List.make(_elm);
-   var Maybe = Elm.Maybe.make(_elm);
-   var Native = Native || {};
-   Native.Json = Elm.Native.Json.make(_elm);
-   var Native = Native || {};
-   Native.Ports = Elm.Native.Ports.make(_elm);
-   var Signal = Elm.Signal.make(_elm);
-   var String = Elm.String.make(_elm);
-   var Text = Elm.Text.make(_elm);
-   var Time = Elm.Time.make(_elm);
-   var Window = Elm.Window.make(_elm);
-   var _op = {};
-   var getStorage = Native.Ports.portIn("getStorage",
+   $moduleName = "Todo",
+   $Basics = Elm.Basics.make(_elm),
+   $Graphics$Element = Elm.Graphics.Element.make(_elm),
+   $Graphics$Input = Elm.Graphics.Input.make(_elm),
+   $Html = Elm.Html.make(_elm),
+   $Html$Attributes = Elm.Html.Attributes.make(_elm),
+   $Html$Events = Elm.Html.Events.make(_elm),
+   $Html$Optimize$RefEq = Elm.Html.Optimize.RefEq.make(_elm),
+   $Html$Tags = Elm.Html.Tags.make(_elm),
+   $List = Elm.List.make(_elm),
+   $Maybe = Elm.Maybe.make(_elm),
+   $Native$Json = Elm.Native.Json.make(_elm),
+   $Native$Ports = Elm.Native.Ports.make(_elm),
+   $Signal = Elm.Signal.make(_elm),
+   $String = Elm.String.make(_elm),
+   $Window = Elm.Window.make(_elm);
+   var getStorage = $Native$Ports.portIn("getStorage",
    function (v) {
-      return v === null ? Maybe.Nothing : Maybe.Just(typeof v === "object" && "field" in v && "uid" in v && "visibility" in v && "tasks" in v ? {_: {}
-                                                                                                                                                ,field: typeof v.field === "string" || typeof v.field === "object" && v.field instanceof String ? v.field : _E.raise("invalid input, expecting JSString but got " + v.field)
-                                                                                                                                                ,uid: typeof v.uid === "number" ? v.uid : _E.raise("invalid input, expecting JSNumber but got " + v.uid)
-                                                                                                                                                ,visibility: typeof v.visibility === "string" || typeof v.visibility === "object" && v.visibility instanceof String ? v.visibility : _E.raise("invalid input, expecting JSString but got " + v.visibility)
-                                                                                                                                                ,tasks: _U.isJSArray(v.tasks) ? _L.fromArray(v.tasks.map(function (v) {
-                                                                                                                                                   return typeof v === "object" && "description" in v && "completed" in v && "editing" in v && "id" in v ? {_: {}
-                                                                                                                                                                                                                                                           ,description: typeof v.description === "string" || typeof v.description === "object" && v.description instanceof String ? v.description : _E.raise("invalid input, expecting JSString but got " + v.description)
-                                                                                                                                                                                                                                                           ,completed: typeof v.completed === "boolean" ? v.completed : _E.raise("invalid input, expecting JSBoolean but got " + v.completed)
-                                                                                                                                                                                                                                                           ,editing: typeof v.editing === "boolean" ? v.editing : _E.raise("invalid input, expecting JSBoolean but got " + v.editing)
-                                                                                                                                                                                                                                                           ,id: typeof v.id === "number" ? v.id : _E.raise("invalid input, expecting JSNumber but got " + v.id)} : _E.raise("invalid input, expecting JSObject [\"description\",\"completed\",\"editing\",\"id\"] but got " + v);
-                                                                                                                                                })) : _E.raise("invalid input, expecting JSArray but got " + v.tasks)} : _E.raise("invalid input, expecting JSObject [\"field\",\"uid\",\"visibility\",\"tasks\"] but got " + v));
+      return v === null ? $Maybe.Nothing : $Maybe.Just(typeof v === "object" && "tasks" in v && "field" in v && "uid" in v && "visibility" in v ? {_: {}
+                                                                                                                                                  ,tasks: _U.isJSArray(v.tasks) ? _L.fromArray(v.tasks.map(function (v) {
+                                                                                                                                                     return typeof v === "object" && "description" in v && "completed" in v && "editing" in v && "id" in v ? {_: {}
+                                                                                                                                                                                                                                                             ,description: typeof v.description === "string" || typeof v.description === "object" && v.description instanceof String ? v.description : _E.raise("invalid input, expecting JSString but got " + v.description)
+                                                                                                                                                                                                                                                             ,completed: typeof v.completed === "boolean" ? v.completed : _E.raise("invalid input, expecting JSBoolean but got " + v.completed)
+                                                                                                                                                                                                                                                             ,editing: typeof v.editing === "boolean" ? v.editing : _E.raise("invalid input, expecting JSBoolean but got " + v.editing)
+                                                                                                                                                                                                                                                             ,id: typeof v.id === "number" ? v.id : _E.raise("invalid input, expecting JSNumber but got " + v.id)} : _E.raise("invalid input, expecting JSObject [\"description\",\"completed\",\"editing\",\"id\"] but got " + v);
+                                                                                                                                                  })) : _E.raise("invalid input, expecting JSArray but got " + v.tasks)
+                                                                                                                                                  ,field: typeof v.field === "string" || typeof v.field === "object" && v.field instanceof String ? v.field : _E.raise("invalid input, expecting JSString but got " + v.field)
+                                                                                                                                                  ,uid: typeof v.uid === "number" ? v.uid : _E.raise("invalid input, expecting JSNumber but got " + v.uid)
+                                                                                                                                                  ,visibility: typeof v.visibility === "string" || typeof v.visibility === "object" && v.visibility instanceof String ? v.visibility : _E.raise("invalid input, expecting JSString but got " + v.visibility)} : _E.raise("invalid input, expecting JSObject [\"tasks\",\"field\",\"uid\",\"visibility\"] but got " + v));
    });
-   var infoFooter = A4(Html.node,
-   "footer",
-   _L.fromArray([A2(Html._op[":="],
-   "id",
-   "info")]),
-   _L.fromArray([]),
-   _L.fromArray([A4(Html.node,
-                "p",
+   var infoFooter = A2($Html$Tags.footer,
+   _L.fromArray([$Html$Attributes.id("info")]),
+   _L.fromArray([A2($Html$Tags.p,
                 _L.fromArray([]),
+                _L.fromArray([$Html.text("Double-click to edit a todo")]))
+                ,A2($Html$Tags.p,
                 _L.fromArray([]),
-                _L.fromArray([Html.text("Double-click to edit a todo")]))
-                ,A4(Html.node,
-                "p",
+                _L.fromArray([$Html.text("Written by ")
+                             ,A2($Html$Tags.a,
+                             _L.fromArray([$Html$Attributes.href("https://github.com/evancz")]),
+                             _L.fromArray([$Html.text("Evan Czaplicki")]))]))
+                ,A2($Html$Tags.p,
                 _L.fromArray([]),
-                _L.fromArray([]),
-                _L.fromArray([Html.text("Written by ")
-                             ,A4(Html.node,
-                             "a",
-                             _L.fromArray([A2(Html._op[":="],
-                             "href",
-                             "https://github.com/evancz")]),
-                             _L.fromArray([]),
-                             _L.fromArray([Html.text("Evan Czaplicki")]))]))
-                ,A4(Html.node,
-                "p",
-                _L.fromArray([]),
-                _L.fromArray([]),
-                _L.fromArray([Html.text("Part of ")
-                             ,A4(Html.node,
-                             "a",
-                             _L.fromArray([A2(Html._op[":="],
-                             "href",
-                             "http://todomvc.com")]),
-                             _L.fromArray([]),
-                             _L.fromArray([Html.text("TodoMVC")]))]))]));
+                _L.fromArray([$Html.text("Part of ")
+                             ,A2($Html$Tags.a,
+                             _L.fromArray([$Html$Attributes.href("http://todomvc.com")]),
+                             _L.fromArray([$Html.text("TodoMVC")]))]))]));
    var onEnter = F2(function (handle,
    value) {
-      return A4(Html.Events.on,
+      return A4($Html.on,
       "keydown",
-      A2(Html.Events.when,
+      A2($Html.when,
       function (k) {
          return _U.eq(k.keyCode,13);
       },
-      Html.Events.getKeyboardEvent),
+      $Html.getKeyboardEvent),
       handle,
-      Basics.always(value));
+      $Basics.always(value));
    });
    var ChangeVisibility = function (a) {
       return {ctor: "ChangeVisibility"
@@ -1913,40 +1903,22 @@ Elm.Todo.make = function (_elm) {
              ,_0: a};
    };
    var NoOp = {ctor: "NoOp"};
-   var actions = Graphics.Input.input(NoOp);
-   var taskEntry = function (value) {
-      return A4(Html.node,
-      "header",
-      _L.fromArray([A2(Html._op[":="],
-      "id",
-      "header")]),
-      _L.fromArray([]),
-      _L.fromArray([A4(Html.node,
-                   "h1",
+   var actions = $Graphics$Input.input(NoOp);
+   var taskEntry = function (task) {
+      return A2($Html$Tags.header,
+      _L.fromArray([$Html$Attributes.id("header")]),
+      _L.fromArray([A2($Html$Tags.h1,
                    _L.fromArray([]),
-                   _L.fromArray([]),
-                   _L.fromArray([Html.text("todos")]))
-                   ,A5(Html.eventNode,
-                   "input",
-                   _L.fromArray([A2(Html._op[":="],
-                                "id",
-                                "new-todo")
-                                ,A2(Html._op[":="],
-                                "placeholder",
-                                "What needs to be done?")
-                                ,A2(Html._op[":="],
-                                "autofocus",
-                                "true")
-                                ,A2(Html._op[":="],
-                                "value",
-                                value)
-                                ,A2(Html._op[":="],
-                                "name",
-                                "newTodo")]),
-                   _L.fromArray([]),
-                   _L.fromArray([A4(Html.Events.on,
+                   _L.fromArray([$Html.text("todos")]))
+                   ,A2($Html$Tags.input,
+                   _L.fromArray([$Html$Attributes.id("new-todo")
+                                ,$Html$Attributes.placeholder("What needs to be done?")
+                                ,$Html$Attributes.autofocus(true)
+                                ,$Html$Attributes.value(task)
+                                ,$Html$Attributes.name("newTodo")
+                                ,A4($Html.on,
                                 "input",
-                                Html.Events.getValue,
+                                $Html.getValue,
                                 actions.handle,
                                 UpdateField)
                                 ,A2(onEnter,
@@ -1958,45 +1930,26 @@ Elm.Todo.make = function (_elm) {
       return function () {
          var className = _L.append(todo.completed ? "completed " : "",
          todo.editing ? "editing" : "");
-         return A4(Html.node,
-         "li",
-         _L.fromArray([A2(Html._op[":="],
-         "className",
-         className)]),
-         _L.fromArray([]),
-         _L.fromArray([A4(Html.node,
-                      "div",
-                      _L.fromArray([A2(Html._op[":="],
-                      "className",
-                      "view")]),
-                      _L.fromArray([]),
-                      _L.fromArray([A5(Html.eventNode,
-                                   "input",
-                                   _L.fromArray([A2(Html._op[":="],
-                                                "className",
-                                                "toggle")
-                                                ,A2(Html._op[":="],
-                                                "type",
-                                                "checkbox")
-                                                ,A2(Html.bool,
-                                                "checked",
-                                                todo.completed)]),
-                                   _L.fromArray([]),
-                                   _L.fromArray([A2(Html.Events.onclick,
-                                   actions.handle,
-                                   function (_v0) {
-                                      return function () {
-                                         return A2(Check,
-                                         todo.id,
-                                         Basics.not(todo.completed));
-                                      }();
-                                   })]),
+         return A2($Html$Tags.li,
+         _L.fromArray([$Html$Attributes.$class(className)]),
+         _L.fromArray([A2($Html$Tags.div,
+                      _L.fromArray([$Html$Attributes.$class("view")]),
+                      _L.fromArray([A2($Html$Tags.input,
+                                   _L.fromArray([$Html$Attributes.$class("toggle")
+                                                ,$Html$Attributes.type$("checkbox")
+                                                ,$Html$Attributes.checked(todo.completed)
+                                                ,A2($Html$Events.onclick,
+                                                actions.handle,
+                                                function (_v0) {
+                                                   return function () {
+                                                      return A2(Check,
+                                                      todo.id,
+                                                      $Basics.not(todo.completed));
+                                                   }();
+                                                })]),
                                    _L.fromArray([]))
-                                   ,A5(Html.eventNode,
-                                   "label",
-                                   _L.fromArray([]),
-                                   _L.fromArray([]),
-                                   _L.fromArray([A2(Html.Events.ondblclick,
+                                   ,A2($Html$Tags.label,
+                                   _L.fromArray([A2($Html$Events.ondblclick,
                                    actions.handle,
                                    function (_v2) {
                                       return function () {
@@ -2005,39 +1958,25 @@ Elm.Todo.make = function (_elm) {
                                          true);
                                       }();
                                    })]),
-                                   _L.fromArray([Html.text(todo.description)]))
-                                   ,A5(Html.eventNode,
-                                   "button",
-                                   _L.fromArray([A2(Html._op[":="],
-                                   "className",
-                                   "destroy")]),
-                                   _L.fromArray([]),
-                                   _L.fromArray([A2(Html.Events.onclick,
-                                   actions.handle,
-                                   Basics.always(Delete(todo.id)))]),
+                                   _L.fromArray([$Html.text(todo.description)]))
+                                   ,A2($Html$Tags.button,
+                                   _L.fromArray([$Html$Attributes.$class("destroy")
+                                                ,A2($Html$Events.onclick,
+                                                actions.handle,
+                                                $Basics.always(Delete(todo.id)))]),
                                    _L.fromArray([]))]))
-                      ,A5(Html.eventNode,
-                      "input",
-                      _L.fromArray([A2(Html._op[":="],
-                                   "className",
-                                   "edit")
-                                   ,A2(Html._op[":="],
-                                   "value",
-                                   todo.description)
-                                   ,A2(Html._op[":="],
-                                   "name",
-                                   "title")
-                                   ,A2(Html._op[":="],
-                                   "id",
-                                   _L.append("todo-",
-                                   String.show(todo.id)))]),
-                      _L.fromArray([]),
-                      _L.fromArray([A4(Html.Events.on,
+                      ,A2($Html$Tags.input,
+                      _L.fromArray([$Html$Attributes.$class("edit")
+                                   ,$Html$Attributes.value(todo.description)
+                                   ,$Html$Attributes.name("title")
+                                   ,$Html$Attributes.id(_L.append("todo-",
+                                   $String.show(todo.id)))
+                                   ,A4($Html.on,
                                    "input",
-                                   Html.Events.getValue,
+                                   $Html.getValue,
                                    actions.handle,
                                    UpdateTask(todo.id))
-                                   ,A2(Html.Events.onblur,
+                                   ,A2($Html$Events.onblur,
                                    actions.handle,
                                    A2(EditingTask,todo.id,false))
                                    ,A2(onEnter,
@@ -2051,7 +1990,8 @@ Elm.Todo.make = function (_elm) {
    var taskList = F2(function (visibility,
    tasks) {
       return function () {
-         var allCompleted = A2(List.all,
+         var cssVisibility = $List.isEmpty(tasks) ? "hidden" : "visible";
+         var allCompleted = A2($List.all,
          function (_) {
             return _.completed;
          },
@@ -2060,61 +2000,40 @@ Elm.Todo.make = function (_elm) {
             return function () {
                switch (visibility)
                {case "Active":
-                  return Basics.not(todo.completed);
+                  return $Basics.not(todo.completed);
                   case "All": return true;
                   case "Completed":
                   return todo.completed;}
                _E.Case($moduleName,
-               "between lines 169 and 174");
+               "between lines 167 and 172");
             }();
          };
-         return A4(Html.node,
-         "section",
-         _L.fromArray([A2(Html._op[":="],
-         "id",
-         "main")]),
-         _L.fromArray([A2(Html._op[":="],
-         "visibility",
-         List.isEmpty(tasks) ? "hidden" : "visible")]),
-         _L.fromArray([A5(Html.eventNode,
-                      "input",
-                      _L.fromArray([A2(Html._op[":="],
-                                   "id",
-                                   "toggle-all")
-                                   ,A2(Html._op[":="],
-                                   "type",
-                                   "checkbox")
-                                   ,A2(Html._op[":="],
-                                   "name",
-                                   "toggle")
-                                   ,A2(Html.bool,
-                                   "checked",
-                                   allCompleted)]),
-                      _L.fromArray([]),
-                      _L.fromArray([A2(Html.Events.onclick,
-                      actions.handle,
-                      function (_v5) {
-                         return function () {
-                            return CheckAll(Basics.not(allCompleted));
-                         }();
-                      })]),
+         return A2($Html$Tags.section,
+         _L.fromArray([$Html$Attributes.id("main")
+                      ,$Html.style(_L.fromArray([A2($Html.prop,
+                      "visibility",
+                      cssVisibility)]))]),
+         _L.fromArray([A2($Html$Tags.input,
+                      _L.fromArray([$Html$Attributes.id("toggle-all")
+                                   ,$Html$Attributes.type$("checkbox")
+                                   ,$Html$Attributes.name("toggle")
+                                   ,$Html$Attributes.checked(allCompleted)
+                                   ,A2($Html$Events.onclick,
+                                   actions.handle,
+                                   function (_v5) {
+                                      return function () {
+                                         return CheckAll($Basics.not(allCompleted));
+                                      }();
+                                   })]),
                       _L.fromArray([]))
-                      ,A4(Html.node,
-                      "label",
-                      _L.fromArray([A2(Html._op[":="],
-                      "htmlFor",
-                      "toggle-all")]),
-                      _L.fromArray([]),
-                      _L.fromArray([Html.text("Mark all as complete")]))
-                      ,A4(Html.node,
-                      "ul",
-                      _L.fromArray([A2(Html._op[":="],
-                      "id",
-                      "todo-list")]),
-                      _L.fromArray([]),
-                      A2(List.map,
+                      ,A2($Html$Tags.label,
+                      _L.fromArray([$Html$Attributes.$for("toggle-all")]),
+                      _L.fromArray([$Html.text("Mark all as complete")]))
+                      ,A2($Html$Tags.ul,
+                      _L.fromArray([$Html$Attributes.id("todo-list")]),
+                      A2($List.map,
                       todoItem,
-                      A2(List.filter,
+                      A2($List.filter,
                       isVisible,
                       tasks)))]));
       }();
@@ -2125,123 +2044,82 @@ Elm.Todo.make = function (_elm) {
       return function () {
          var className = _U.eq(visibility,
          actualVisibility) ? "selected" : "";
-         return A5(Html.eventNode,
-         "li",
-         _L.fromArray([]),
-         _L.fromArray([]),
-         _L.fromArray([A2(Html.Events.onclick,
+         return A2($Html$Tags.li,
+         _L.fromArray([A2($Html$Events.onclick,
          actions.handle,
-         Basics.always(ChangeVisibility(visibility)))]),
-         _L.fromArray([A4(Html.node,
-         "a",
-         _L.fromArray([A2(Html._op[":="],
-                      "className",
-                      className)
-                      ,A2(Html._op[":="],
-                      "href",
-                      uri)]),
-         _L.fromArray([]),
-         _L.fromArray([Html.text(visibility)]))]));
+         $Basics.always(ChangeVisibility(visibility)))]),
+         _L.fromArray([A2($Html$Tags.a,
+         _L.fromArray([$Html$Attributes.$class(className)
+                      ,$Html$Attributes.href(uri)]),
+         _L.fromArray([$Html.text(visibility)]))]));
       }();
    });
    var controls = F2(function (visibility,
    tasks) {
       return function () {
-         var tasksCompleted = List.length(A2(List.filter,
+         var tasksCompleted = $List.length(A2($List.filter,
          function (_) {
             return _.completed;
          },
          tasks));
-         var tasksLeft = List.length(tasks) - tasksCompleted;
-         return A4(Html.node,
-         "footer",
-         _L.fromArray([A2(Html._op[":="],
-                      "id",
-                      "footer")
-                      ,A2(Html.bool,
-                      "hidden",
-                      List.isEmpty(tasks))]),
-         _L.fromArray([]),
-         _L.fromArray([A4(Html.node,
-                      "span",
-                      _L.fromArray([A2(Html._op[":="],
-                      "id",
-                      "todo-count")]),
-                      _L.fromArray([]),
-                      _L.fromArray([A4(Html.node,
-                                   "strong",
+         var tasksLeft = $List.length(tasks) - tasksCompleted;
+         var item_ = _U.eq(tasksLeft,
+         1) ? " item" : " items";
+         return A2($Html$Tags.footer,
+         _L.fromArray([$Html$Attributes.id("footer")
+                      ,$Html$Attributes.hidden($List.isEmpty(tasks))]),
+         _L.fromArray([A2($Html$Tags.span,
+                      _L.fromArray([$Html$Attributes.id("todo-count")]),
+                      _L.fromArray([A2($Html$Tags.strong,
                                    _L.fromArray([]),
-                                   _L.fromArray([]),
-                                   _L.fromArray([Html.text(String.show(tasksLeft))]))
-                                   ,function () {
-                                      var item_ = _U.eq(tasksLeft,
-                                      1) ? " item" : " items";
-                                      return Html.text(_L.append(item_,
-                                      " left"));
-                                   }()]))
-                      ,A4(Html.node,
-                      "ul",
-                      _L.fromArray([A2(Html._op[":="],
-                      "id",
-                      "filters")]),
-                      _L.fromArray([]),
+                                   _L.fromArray([$Html.text($String.show(tasksLeft))]))
+                                   ,$Html.text(_L.append(item_,
+                                   " left"))]))
+                      ,A2($Html$Tags.ul,
+                      _L.fromArray([$Html$Attributes.id("filters")]),
                       _L.fromArray([A3(visibilitySwap,
                                    "#/",
                                    "All",
                                    visibility)
-                                   ,Html.text(" ")
+                                   ,$Html.text(" ")
                                    ,A3(visibilitySwap,
                                    "#/active",
                                    "Active",
                                    visibility)
-                                   ,Html.text(" ")
+                                   ,$Html.text(" ")
                                    ,A3(visibilitySwap,
                                    "#/completed",
                                    "Completed",
                                    visibility)]))
-                      ,A5(Html.eventNode,
-                      "button",
-                      _L.fromArray([A2(Html._op[":="],
-                                   "className",
-                                   "clear-completed")
-                                   ,A2(Html._op[":="],
-                                   "id",
-                                   "clear-completed")
-                                   ,A2(Html.bool,
-                                   "hidden",
-                                   _U.eq(tasksCompleted,0))]),
-                      _L.fromArray([]),
-                      _L.fromArray([A2(Html.Events.onclick,
-                      actions.handle,
-                      Basics.always(DeleteComplete))]),
-                      _L.fromArray([Html.text(_L.append("Clear completed (",
-                      _L.append(String.show(tasksCompleted),
+                      ,A2($Html$Tags.button,
+                      _L.fromArray([$Html$Attributes.$class("clear-completed")
+                                   ,$Html$Attributes.id("clear-completed")
+                                   ,$Html$Attributes.hidden(_U.eq(tasksCompleted,
+                                   0))
+                                   ,A2($Html$Events.onclick,
+                                   actions.handle,
+                                   $Basics.always(DeleteComplete))]),
+                      _L.fromArray([$Html.text(_L.append("Clear completed (",
+                      _L.append($String.show(tasksCompleted),
                       ")")))]))]));
       }();
    });
    var view = function (state) {
-      return A4(Html.node,
-      "div",
-      _L.fromArray([A2(Html._op[":="],
-      "className",
-      "todomvc-wrapper")]),
-      _L.fromArray([A2(Html._op[":="],
-      "visibility",
-      "hidden")]),
-      _L.fromArray([A4(Html.node,
-                   "section",
-                   _L.fromArray([A2(Html._op[":="],
-                   "id",
-                   "todoapp")]),
-                   _L.fromArray([]),
-                   _L.fromArray([A2(Html.Optimize.RefEq.lazy,
+      return A2($Html$Tags.div,
+      _L.fromArray([$Html$Attributes.$class("todomvc-wrapper")
+                   ,$Html.style(_L.fromArray([A2($Html.prop,
+                   "visibility",
+                   "hidden")]))]),
+      _L.fromArray([A2($Html$Tags.section,
+                   _L.fromArray([$Html$Attributes.id("todoapp")]),
+                   _L.fromArray([A2($Html$Optimize$RefEq.lazy,
                                 taskEntry,
                                 state.field)
-                                ,A3(Html.Optimize.RefEq.lazy2,
+                                ,A3($Html$Optimize$RefEq.lazy2,
                                 taskList,
                                 state.visibility,
                                 state.tasks)
-                                ,A3(Html.Optimize.RefEq.lazy2,
+                                ,A3($Html$Optimize$RefEq.lazy2,
                                 controls,
                                 state.visibility,
                                 state.tasks)]))
@@ -2252,20 +2130,20 @@ Elm.Todo.make = function (_elm) {
       return function () {
          switch (_v7.ctor)
          {case "_Tuple2":
-            return A4(Graphics.Element.container,
+            return A4($Graphics$Element.container,
               _v7._0,
               _v7._1,
-              Graphics.Element.midTop,
-              A3(Html.toElement,
+              $Graphics$Element.midTop,
+              A3($Html.toElement,
               550,
               _v7._1,
               view(state)));}
          _E.Case($moduleName,
-         "on line 296, column 5 to 59");
+         "on line 294, column 5 to 54");
       }();
    });
-   var focus = Native.Ports.portOut("focus",
-   Native.Ports.outgoingSignal(function (v) {
+   var focus = $Native$Ports.portOut("focus",
+   $Native$Ports.outgoingSignal(function (v) {
       return v;
    }),
    function () {
@@ -2274,9 +2152,9 @@ Elm.Todo.make = function (_elm) {
             switch (_v11.ctor)
             {case "EditingTask":
                return _L.append("#todo-",
-                 String.show(_v11._0));}
+                 $String.show(_v11._0));}
             _E.Case($moduleName,
-            "on line 316, column 42 to 61");
+            "on line 314, column 42 to 61");
          }();
       };
       var needsFocus = function (act) {
@@ -2287,9 +2165,9 @@ Elm.Todo.make = function (_elm) {
             return false;
          }();
       };
-      return A2(Signal._op["<~"],
+      return A2($Signal._op["<~"],
       toSelector,
-      A3(Signal.keepIf,
+      A3($Signal.keepIf,
       needsFocus,
       A2(EditingTask,0,true),
       actions.signal));
@@ -2299,9 +2177,9 @@ Elm.Todo.make = function (_elm) {
                     ,tasks: _L.fromArray([])
                     ,uid: 0
                     ,visibility: "All"};
-   var startingState = A3(Maybe.maybe,
+   var startingState = A3($Maybe.maybe,
    emptyState,
-   Basics.id,
+   $Basics.identity,
    getStorage);
    var newTask = F2(function (desc,
    id) {
@@ -2320,7 +2198,7 @@ Elm.Todo.make = function (_elm) {
                                ,state.uid + 1]
                               ,["field",""]
                               ,["tasks"
-                               ,String.isEmpty(state.field) ? state.tasks : _L.append(state.tasks,
+                               ,$String.isEmpty(state.field) ? state.tasks : _L.append(state.tasks,
                                _L.fromArray([A2(newTask,
                                state.field,
                                state.uid)]))]],
@@ -2338,7 +2216,7 @@ Elm.Todo.make = function (_elm) {
                     t) : t;
                  };
                  return _U.replace([["tasks"
-                                    ,A2(List.map,
+                                    ,A2($List.map,
                                     update,
                                     state.tasks)]],
                  state);
@@ -2351,14 +2229,14 @@ Elm.Todo.make = function (_elm) {
                     t);
                  };
                  return _U.replace([["tasks"
-                                    ,A2(List.map,
+                                    ,A2($List.map,
                                     update,
                                     state.tasks)]],
                  state);
               }();
             case "Delete":
             return _U.replace([["tasks"
-                               ,A2(List.filter,
+                               ,A2($List.filter,
                                function (t) {
                                   return !_U.eq(t.id,
                                   action._0);
@@ -2367,9 +2245,9 @@ Elm.Todo.make = function (_elm) {
               state);
             case "DeleteComplete":
             return _U.replace([["tasks"
-                               ,A2(List.filter,
+                               ,A2($List.filter,
                                function ($) {
-                                  return Basics.not(function (_) {
+                                  return $Basics.not(function (_) {
                                      return _.completed;
                                   }($));
                                },
@@ -2384,7 +2262,7 @@ Elm.Todo.make = function (_elm) {
                     t) : t;
                  };
                  return _U.replace([["tasks"
-                                    ,A2(List.map,
+                                    ,A2($List.map,
                                     update,
                                     state.tasks)]],
                  state);
@@ -2403,34 +2281,34 @@ Elm.Todo.make = function (_elm) {
                     t) : t;
                  };
                  return _U.replace([["tasks"
-                                    ,A2(List.map,
+                                    ,A2($List.map,
                                     update,
                                     state.tasks)]],
                  state);
               }();}
          _E.Case($moduleName,
-         "between lines 85 and 122");
+         "between lines 86 and 123");
       }();
    });
-   var state = A3(Signal.foldp,
+   var state = A3($Signal.foldp,
    step,
    startingState,
    actions.signal);
-   var main = A3(Signal.lift2,
+   var main = A3($Signal.lift2,
    scene,
    state,
-   Window.dimensions);
-   var setStorage = Native.Ports.portOut("setStorage",
-   Native.Ports.outgoingSignal(function (v) {
-      return {field: v.field
-             ,uid: v.uid
-             ,visibility: v.visibility
-             ,tasks: _L.toArray(v.tasks).map(function (v) {
+   $Window.dimensions);
+   var setStorage = $Native$Ports.portOut("setStorage",
+   $Native$Ports.outgoingSignal(function (v) {
+      return {tasks: _L.toArray(v.tasks).map(function (v) {
                 return {description: v.description
                        ,completed: v.completed
                        ,editing: v.editing
                        ,id: v.id};
-             })};
+             })
+             ,field: v.field
+             ,uid: v.uid
+             ,visibility: v.visibility};
    }),
    state);
    var Task = F4(function (a,
@@ -2454,8 +2332,20 @@ Elm.Todo.make = function (_elm) {
              ,visibility: d};
    });
    _elm.Todo.values = {_op: _op
+                      ,State: State
+                      ,Task: Task
                       ,newTask: newTask
                       ,emptyState: emptyState
+                      ,NoOp: NoOp
+                      ,UpdateField: UpdateField
+                      ,EditingTask: EditingTask
+                      ,UpdateTask: UpdateTask
+                      ,Add: Add
+                      ,Delete: Delete
+                      ,DeleteComplete: DeleteComplete
+                      ,Check: Check
+                      ,CheckAll: CheckAll
+                      ,ChangeVisibility: ChangeVisibility
                       ,step: step
                       ,view: view
                       ,onEnter: onEnter
@@ -2469,20 +2359,224 @@ Elm.Todo.make = function (_elm) {
                       ,scene: scene
                       ,state: state
                       ,startingState: startingState
-                      ,actions: actions
-                      ,NoOp: NoOp
-                      ,UpdateField: UpdateField
-                      ,EditingTask: EditingTask
-                      ,UpdateTask: UpdateTask
-                      ,Add: Add
-                      ,Delete: Delete
-                      ,DeleteComplete: DeleteComplete
-                      ,Check: Check
-                      ,CheckAll: CheckAll
-                      ,ChangeVisibility: ChangeVisibility
-                      ,State: State
-                      ,Task: Task};
+                      ,actions: actions};
    return _elm.Todo.values;
+};Elm.Html = Elm.Html || {};
+Elm.Html.Tags = Elm.Html.Tags || {};
+Elm.Html.Tags.make = function (_elm) {
+   "use strict";
+   _elm.Html = _elm.Html || {};
+   _elm.Html.Tags = _elm.Html.Tags || {};
+   if (_elm.Html.Tags.values)
+   return _elm.Html.Tags.values;
+   var _op = {},
+   _N = Elm.Native,
+   _U = _N.Utils.make(_elm),
+   _L = _N.List.make(_elm),
+   _A = _N.Array.make(_elm),
+   _E = _N.Error.make(_elm),
+   $moduleName = "Html.Tags",
+   $Html = Elm.Html.make(_elm);
+   var menu = $Html.node("menu");
+   var menuitem = $Html.node("menuitem");
+   var summary = $Html.node("summary");
+   var details = $Html.node("details");
+   var meter = $Html.node("meter");
+   var progress = $Html.node("progress");
+   var output = $Html.node("output");
+   var keygen = $Html.node("keygen");
+   var textarea = $Html.node("textarea");
+   var option = $Html.node("option");
+   var optgroup = $Html.node("optgroup");
+   var datalist = $Html.node("datalist");
+   var select = $Html.node("select");
+   var button = $Html.node("button");
+   var input = $Html.node("input");
+   var label = $Html.node("label");
+   var legend = $Html.node("legend");
+   var fieldset = $Html.node("fieldset");
+   var form = $Html.node("form");
+   var th = $Html.node("th");
+   var td = $Html.node("td");
+   var tr = $Html.node("tr");
+   var tfoot = $Html.node("tfoot");
+   var thead = $Html.node("thead");
+   var tbody = $Html.node("tbody");
+   var col = $Html.node("col");
+   var colgroup = $Html.node("colgroup");
+   var caption = $Html.node("caption");
+   var table = $Html.node("table");
+   var math = $Html.node("math");
+   var svg = $Html.node("svg");
+   var canvas = $Html.node("canvas");
+   var track = $Html.node("track");
+   var source = $Html.node("source");
+   var audio = $Html.node("audio");
+   var video = $Html.node("video");
+   var param = $Html.node("param");
+   var object = $Html.node("object");
+   var embed = $Html.node("embed");
+   var iframe = $Html.node("iframe");
+   var img = $Html.node("img");
+   var del = $Html.node("del");
+   var ins = $Html.node("ins");
+   var wbr = $Html.node("wbr");
+   var br = $Html.node("br");
+   var span = $Html.node("span");
+   var bdo = $Html.node("bdo");
+   var bdi = $Html.node("bdi");
+   var rp = $Html.node("rp");
+   var rt = $Html.node("rt");
+   var ruby = $Html.node("ruby");
+   var mark = $Html.node("mark");
+   var u = $Html.node("u");
+   var b = $Html.node("b");
+   var i = $Html.node("i");
+   var sup = $Html.node("sup");
+   var sub = $Html.node("sub");
+   var kbd = $Html.node("kbd");
+   var samp = $Html.node("samp");
+   var $var = $Html.node("var");
+   var code = $Html.node("code");
+   var time = $Html.node("time");
+   var abbr = $Html.node("abbr");
+   var dfn = $Html.node("dfn");
+   var q = $Html.node("q");
+   var cite = $Html.node("cite");
+   var s = $Html.node("s");
+   var small = $Html.node("small");
+   var strong = $Html.node("strong");
+   var em = $Html.node("em");
+   var a = $Html.node("a");
+   var div = $Html.node("div");
+   var figcaption = $Html.node("figcaption");
+   var figure = $Html.node("figure");
+   var dd = $Html.node("dd");
+   var dt = $Html.node("dt");
+   var dl = $Html.node("dl");
+   var li = $Html.node("li");
+   var ul = $Html.node("ul");
+   var ol = $Html.node("ol");
+   var blockquote = $Html.node("blockquote");
+   var pre = $Html.node("pre");
+   var hr = $Html.node("hr");
+   var p = $Html.node("p");
+   var main$ = $Html.node("main");
+   var address = $Html.node("address");
+   var footer = $Html.node("footer");
+   var header = $Html.node("header");
+   var h6 = $Html.node("h6");
+   var h5 = $Html.node("h5");
+   var h4 = $Html.node("h4");
+   var h3 = $Html.node("h3");
+   var h2 = $Html.node("h2");
+   var h1 = $Html.node("h1");
+   var aside = $Html.node("aside");
+   var article = $Html.node("article");
+   var nav = $Html.node("nav");
+   var section = $Html.node("section");
+   var body = $Html.node("body");
+   _elm.Html.Tags.values = {_op: _op
+                           ,body: body
+                           ,section: section
+                           ,nav: nav
+                           ,article: article
+                           ,aside: aside
+                           ,h1: h1
+                           ,h2: h2
+                           ,h3: h3
+                           ,h4: h4
+                           ,h5: h5
+                           ,h6: h6
+                           ,header: header
+                           ,footer: footer
+                           ,address: address
+                           ,main$: main$
+                           ,p: p
+                           ,hr: hr
+                           ,pre: pre
+                           ,blockquote: blockquote
+                           ,ol: ol
+                           ,ul: ul
+                           ,li: li
+                           ,dl: dl
+                           ,dt: dt
+                           ,dd: dd
+                           ,figure: figure
+                           ,figcaption: figcaption
+                           ,div: div
+                           ,a: a
+                           ,em: em
+                           ,strong: strong
+                           ,small: small
+                           ,s: s
+                           ,cite: cite
+                           ,q: q
+                           ,dfn: dfn
+                           ,abbr: abbr
+                           ,time: time
+                           ,code: code
+                           ,$var: $var
+                           ,samp: samp
+                           ,kbd: kbd
+                           ,sub: sub
+                           ,sup: sup
+                           ,i: i
+                           ,b: b
+                           ,u: u
+                           ,mark: mark
+                           ,ruby: ruby
+                           ,rt: rt
+                           ,rp: rp
+                           ,bdi: bdi
+                           ,bdo: bdo
+                           ,span: span
+                           ,br: br
+                           ,wbr: wbr
+                           ,ins: ins
+                           ,del: del
+                           ,img: img
+                           ,iframe: iframe
+                           ,embed: embed
+                           ,object: object
+                           ,param: param
+                           ,video: video
+                           ,audio: audio
+                           ,source: source
+                           ,track: track
+                           ,canvas: canvas
+                           ,svg: svg
+                           ,math: math
+                           ,table: table
+                           ,caption: caption
+                           ,colgroup: colgroup
+                           ,col: col
+                           ,tbody: tbody
+                           ,thead: thead
+                           ,tfoot: tfoot
+                           ,tr: tr
+                           ,td: td
+                           ,th: th
+                           ,form: form
+                           ,fieldset: fieldset
+                           ,legend: legend
+                           ,label: label
+                           ,input: input
+                           ,button: button
+                           ,select: select
+                           ,datalist: datalist
+                           ,optgroup: optgroup
+                           ,option: option
+                           ,textarea: textarea
+                           ,keygen: keygen
+                           ,output: output
+                           ,progress: progress
+                           ,meter: meter
+                           ,details: details
+                           ,summary: summary
+                           ,menuitem: menuitem
+                           ,menu: menu};
+   return _elm.Html.Tags.values;
 };Elm.Html = Elm.Html || {};
 Elm.Html.Optimize = Elm.Html.Optimize || {};
 Elm.Html.Optimize.RefEq = Elm.Html.Optimize.RefEq || {};
@@ -2493,127 +2587,23 @@ Elm.Html.Optimize.RefEq.make = function (_elm) {
    _elm.Html.Optimize.RefEq = _elm.Html.Optimize.RefEq || {};
    if (_elm.Html.Optimize.RefEq.values)
    return _elm.Html.Optimize.RefEq.values;
-   var _N = Elm.Native,
+   var _op = {},
+   _N = Elm.Native,
    _U = _N.Utils.make(_elm),
    _L = _N.List.make(_elm),
    _A = _N.Array.make(_elm),
    _E = _N.Error.make(_elm),
-   $moduleName = "Html.Optimize.RefEq";
-   var Basics = Elm.Basics.make(_elm);
-   var Color = Elm.Color.make(_elm);
-   var Graphics = Graphics || {};
-   Graphics.Collage = Elm.Graphics.Collage.make(_elm);
-   var Graphics = Graphics || {};
-   Graphics.Element = Elm.Graphics.Element.make(_elm);
-   var Html = Elm.Html.make(_elm);
-   var List = Elm.List.make(_elm);
-   var Maybe = Elm.Maybe.make(_elm);
-   var Native = Native || {};
-   Native.Html = Elm.Native.Html.make(_elm);
-   var Native = Native || {};
-   Native.Json = Elm.Native.Json.make(_elm);
-   var Native = Native || {};
-   Native.Ports = Elm.Native.Ports.make(_elm);
-   var Signal = Elm.Signal.make(_elm);
-   var String = Elm.String.make(_elm);
-   var Text = Elm.Text.make(_elm);
-   var Time = Elm.Time.make(_elm);
-   var _op = {};
-   var lazy3 = Native.Html.lazyRef3;
-   var lazy2 = Native.Html.lazyRef2;
-   var lazy = Native.Html.lazyRef;
+   $moduleName = "Html.Optimize.RefEq",
+   $Html = Elm.Html.make(_elm),
+   $Native$Html = Elm.Native.Html.make(_elm);
+   var lazy3 = $Native$Html.lazyRef3;
+   var lazy2 = $Native$Html.lazyRef2;
+   var lazy = $Native$Html.lazyRef;
    _elm.Html.Optimize.RefEq.values = {_op: _op
                                      ,lazy: lazy
                                      ,lazy2: lazy2
                                      ,lazy3: lazy3};
    return _elm.Html.Optimize.RefEq.values;
-};Elm.Html = Elm.Html || {};
-Elm.Html.make = function (_elm) {
-   "use strict";
-   _elm.Html = _elm.Html || {};
-   if (_elm.Html.values)
-   return _elm.Html.values;
-   var _N = Elm.Native,
-   _U = _N.Utils.make(_elm),
-   _L = _N.List.make(_elm),
-   _A = _N.Array.make(_elm),
-   _E = _N.Error.make(_elm),
-   $moduleName = "Html";
-   var Basics = Elm.Basics.make(_elm);
-   var Color = Elm.Color.make(_elm);
-   var Graphics = Graphics || {};
-   Graphics.Collage = Elm.Graphics.Collage.make(_elm);
-   var Graphics = Graphics || {};
-   Graphics.Element = Elm.Graphics.Element.make(_elm);
-   var Html = Html || {};
-   Html.Events = Elm.Html.Events.make(_elm);
-   var List = Elm.List.make(_elm);
-   var Maybe = Elm.Maybe.make(_elm);
-   var Native = Native || {};
-   Native.Html = Elm.Native.Html.make(_elm);
-   var Native = Native || {};
-   Native.Json = Elm.Native.Json.make(_elm);
-   var Native = Native || {};
-   Native.Ports = Elm.Native.Ports.make(_elm);
-   var Signal = Elm.Signal.make(_elm);
-   var String = Elm.String.make(_elm);
-   var Text = Elm.Text.make(_elm);
-   var Time = Elm.Time.make(_elm);
-   var _op = {};
-   var color = function (clr) {
-      return function () {
-         var c = Color.toRgb(clr);
-         var rgb = _L.append(String.show(c.red),
-         _L.append(", ",
-         _L.append(String.show(c.green),
-         _L.append(", ",
-         String.show(c.blue)))));
-         return _U.eq(c.alpha,
-         1) ? _L.append("rgb(",
-         _L.append(rgb,
-         ")")) : _L.append("rgba(",
-         _L.append(rgb,
-         _L.append(", ",
-         _L.append(String.show(c.alpha),
-         ")"))));
-      }();
-   };
-   var pct = function (n) {
-      return A2(String.append,
-      String.show(100 * n),
-      "%");
-   };
-   var em = function (n) {
-      return A2(String.append,
-      String.show(n),
-      "em");
-   };
-   var px = function (n) {
-      return A2(String.append,
-      String.show(n),
-      "px");
-   };
-   var bool = Native.Html.pair;
-   _op[":="] = Native.Html.pair;
-   var Fact = {ctor: "Fact"};
-   var toElement = Native.Html.toElement;
-   var text = Native.Html.text;
-   var eventNode = Native.Html.eventNode;
-   var node = Native.Html.node;
-   var Html = {ctor: "Html"};
-   _elm.Html.values = {_op: _op
-                      ,node: node
-                      ,eventNode: eventNode
-                      ,text: text
-                      ,toElement: toElement
-                      ,bool: bool
-                      ,px: px
-                      ,em: em
-                      ,pct: pct
-                      ,color: color
-                      ,Html: Html
-                      ,Fact: Fact};
-   return _elm.Html.values;
 };Elm.Html = Elm.Html || {};
 Elm.Html.Events = Elm.Html.Events || {};
 Elm.Html.Events.make = function (_elm) {
@@ -2622,110 +2612,52 @@ Elm.Html.Events.make = function (_elm) {
    _elm.Html.Events = _elm.Html.Events || {};
    if (_elm.Html.Events.values)
    return _elm.Html.Events.values;
-   var _N = Elm.Native,
+   var _op = {},
+   _N = Elm.Native,
    _U = _N.Utils.make(_elm),
    _L = _N.List.make(_elm),
    _A = _N.Array.make(_elm),
    _E = _N.Error.make(_elm),
-   $moduleName = "Html.Events";
-   var Basics = Elm.Basics.make(_elm);
-   var Color = Elm.Color.make(_elm);
-   var Graphics = Graphics || {};
-   Graphics.Collage = Elm.Graphics.Collage.make(_elm);
-   var Graphics = Graphics || {};
-   Graphics.Element = Elm.Graphics.Element.make(_elm);
-   var Graphics = Graphics || {};
-   Graphics.Input = Elm.Graphics.Input.make(_elm);
-   var Json = Elm.Json.make(_elm);
-   var List = Elm.List.make(_elm);
-   var Maybe = Elm.Maybe.make(_elm);
-   var Native = Native || {};
-   Native.Html = Elm.Native.Html.make(_elm);
-   var Native = Native || {};
-   Native.Json = Elm.Native.Json.make(_elm);
-   var Native = Native || {};
-   Native.Ports = Elm.Native.Ports.make(_elm);
-   var Signal = Elm.Signal.make(_elm);
-   var String = Elm.String.make(_elm);
-   var Text = Elm.Text.make(_elm);
-   var Time = Elm.Time.make(_elm);
-   var _op = {};
-   var getAnything = Native.Html.getAnything;
-   var getKeyboardEvent = Native.Html.getKeyboardEvent;
-   var getMouseEvent = Native.Html.getMouseEvent;
-   var getValueAndSelection = Native.Html.getValueAndSelection;
-   var Backward = {ctor: "Backward"};
-   var Forward = {ctor: "Forward"};
-   var getValue = Native.Html.getValue;
-   var getChecked = Native.Html.getChecked;
-   var filterMap = Native.Html.filterMap;
-   var when = F2(function (pred,
-   getter) {
-      return A2(Native.Html.filterMap,
-      function (v) {
-         return pred(v) ? Maybe.Just(v) : Maybe.Nothing;
-      },
-      getter);
-   });
-   var on = F4(function (name,
-   coerce,
-   handle,
-   convert) {
-      return A4(Native.Html.on,
-      name,
-      coerce,
-      handle,
-      convert);
-   });
-   var Get = {ctor: "Get"};
+   $moduleName = "Html.Events",
+   $Basics = Elm.Basics.make(_elm),
+   $Graphics$Input = Elm.Graphics.Input.make(_elm),
+   $Html = Elm.Html.make(_elm);
    var onsubmit = F2(function (handle,
    value) {
-      return A4(Native.Html.on,
+      return A4($Html.on,
       "submit",
-      Native.Html.getAnything,
+      $Html.getAnything,
       handle,
-      Basics.always(value));
+      $Basics.always(value));
    });
    var onfocus = F2(function (handle,
    value) {
-      return A4(Native.Html.on,
+      return A4($Html.on,
       "focus",
-      Native.Html.getAnything,
+      $Html.getAnything,
       handle,
-      Basics.always(value));
+      $Basics.always(value));
    });
    var onblur = F2(function (handle,
    value) {
-      return A4(Native.Html.on,
+      return A4($Html.on,
       "blur",
-      Native.Html.getAnything,
+      $Html.getAnything,
       handle,
-      Basics.always(value));
+      $Basics.always(value));
    });
    var onKey = function (name) {
-      return A2(Native.Html.on,
+      return A2($Html.on,
       name,
-      Native.Html.getKeyboardEvent);
+      $Html.getKeyboardEvent);
    };
    var onkeyup = onKey("keyup");
    var onkeydown = onKey("keydown");
    var onkeypress = onKey("keypress");
-   var KeyboardEvent = F5(function (a,
-   b,
-   c,
-   d,
-   e) {
-      return {_: {}
-             ,altKey: b
-             ,ctrlKey: c
-             ,keyCode: a
-             ,metaKey: d
-             ,shiftKey: e};
-   });
    var onMouse = function (name) {
-      return A2(Native.Html.on,
+      return A2($Html.on,
       name,
-      Native.Html.getMouseEvent);
+      $Html.getMouseEvent);
    };
    var onclick = onMouse("click");
    var ondblclick = onMouse("dblclick");
@@ -2736,19 +2668,6 @@ Elm.Html.Events.make = function (_elm) {
    var onmouseleave = onMouse("mouseleave");
    var onmouseover = onMouse("mouseover");
    var onmouseout = onMouse("mouseout");
-   var MouseEvent = F5(function (a,
-   b,
-   c,
-   d,
-   e) {
-      return {_: {}
-             ,altKey: b
-             ,button: a
-             ,ctrlKey: c
-             ,metaKey: d
-             ,shiftKey: e};
-   });
-   var EventListener = {ctor: "EventListener"};
    _elm.Html.Events.values = {_op: _op
                              ,onMouse: onMouse
                              ,onclick: onclick
@@ -2766,21 +2685,679 @@ Elm.Html.Events.make = function (_elm) {
                              ,onkeypress: onkeypress
                              ,onblur: onblur
                              ,onfocus: onfocus
-                             ,onsubmit: onsubmit
-                             ,on: on
-                             ,when: when
-                             ,filterMap: filterMap
-                             ,getChecked: getChecked
-                             ,getValue: getValue
-                             ,getValueAndSelection: getValueAndSelection
-                             ,getMouseEvent: getMouseEvent
-                             ,getKeyboardEvent: getKeyboardEvent
-                             ,getAnything: getAnything
-                             ,EventListener: EventListener
-                             ,Get: Get
-                             ,Forward: Forward
-                             ,Backward: Backward
-                             ,MouseEvent: MouseEvent
-                             ,KeyboardEvent: KeyboardEvent};
+                             ,onsubmit: onsubmit};
    return _elm.Html.Events.values;
+};Elm.Html = Elm.Html || {};
+Elm.Html.Attributes = Elm.Html.Attributes || {};
+Elm.Html.Attributes.make = function (_elm) {
+   "use strict";
+   _elm.Html = _elm.Html || {};
+   _elm.Html.Attributes = _elm.Html.Attributes || {};
+   if (_elm.Html.Attributes.values)
+   return _elm.Html.Attributes.values;
+   var _op = {},
+   _N = Elm.Native,
+   _U = _N.Utils.make(_elm),
+   _L = _N.List.make(_elm),
+   _A = _N.Array.make(_elm),
+   _E = _N.Error.make(_elm),
+   $moduleName = "Html.Attributes",
+   $Html = Elm.Html.make(_elm),
+   $String = Elm.String.make(_elm);
+   var manifest = function (value) {
+      return A2($Html.attr,
+      "manifest",
+      value);
+   };
+   var scope = function (value) {
+      return A2($Html.attr,
+      "scope",
+      value);
+   };
+   var rowspan = function (value) {
+      return A2($Html.attr,
+      "rowspan",
+      value);
+   };
+   var headers = function (value) {
+      return A2($Html.attr,
+      "headers",
+      value);
+   };
+   var colspan = function (value) {
+      return A2($Html.attr,
+      "colspan",
+      value);
+   };
+   var start = function (n) {
+      return A2($Html.attr,
+      "start",
+      $String.show(n));
+   };
+   var reversed = function (bool) {
+      return A2($Html.toggle,
+      "reversed",
+      bool);
+   };
+   var pubdate = function (value) {
+      return A2($Html.attr,
+      "pubdate",
+      value);
+   };
+   var datetime = function (value) {
+      return A2($Html.attr,
+      "datetime",
+      value);
+   };
+   var rel = function (value) {
+      return A2($Html.attr,
+      "rel",
+      value);
+   };
+   var ping = function (value) {
+      return A2($Html.attr,
+      "ping",
+      value);
+   };
+   var media = function (value) {
+      return A2($Html.attr,
+      "media",
+      value);
+   };
+   var hreflang = function (value) {
+      return A2($Html.attr,
+      "hreflang",
+      value);
+   };
+   var downloadAs = function (value) {
+      return A2($Html.attr,
+      "download",
+      value);
+   };
+   var download = function (bool) {
+      return A2($Html.toggle,
+      "download",
+      bool);
+   };
+   var target = function (value) {
+      return A2($Html.attr,
+      "target",
+      value);
+   };
+   var href = function (value) {
+      return A2($Html.attr,
+      "href",
+      value);
+   };
+   var cite = function (value) {
+      return A2($Html.attr,
+      "cite",
+      value);
+   };
+   var align = function (value) {
+      return A2($Html.attr,
+      "align",
+      value);
+   };
+   var keytype = function (value) {
+      return A2($Html.attr,
+      "keytype",
+      value);
+   };
+   var challenge = function (value) {
+      return A2($Html.attr,
+      "challenge",
+      value);
+   };
+   var coords = function (value) {
+      return A2($Html.attr,
+      "coords",
+      value);
+   };
+   var shape = function (value) {
+      return A2($Html.attr,
+      "shape",
+      value);
+   };
+   var usemap = function (value) {
+      return A2($Html.attr,
+      "usemap",
+      value);
+   };
+   var ismap = function (value) {
+      return A2($Html.attr,
+      "ismap",
+      value);
+   };
+   var wrap = function (value) {
+      return A2($Html.attr,
+      "wrap",
+      value);
+   };
+   var rows = function (n) {
+      return A2($Html.attr,
+      "rows",
+      $String.show(n));
+   };
+   var cols = function (n) {
+      return A2($Html.attr,
+      "cols",
+      $String.show(n));
+   };
+   var step = function (n) {
+      return A2($Html.attr,
+      "step",
+      $String.show(n));
+   };
+   var min = function (value) {
+      return A2($Html.attr,
+      "min",
+      value);
+   };
+   var max = function (value) {
+      return A2($Html.attr,
+      "max",
+      value);
+   };
+   var form = function (value) {
+      return A2($Html.attr,
+      "form",
+      value);
+   };
+   var $for = function (value) {
+      return A2($Html.attr,
+      "htmlFor",
+      value);
+   };
+   var size = function (n) {
+      return A2($Html.attr,
+      "size",
+      $String.show(n));
+   };
+   var required = function (bool) {
+      return A2($Html.toggle,
+      "required",
+      bool);
+   };
+   var readonly = function (bool) {
+      return A2($Html.toggle,
+      "readonly",
+      bool);
+   };
+   var pattern = function (value) {
+      return A2($Html.attr,
+      "pattern",
+      value);
+   };
+   var novalidate = function (bool) {
+      return A2($Html.toggle,
+      "novalidate",
+      bool);
+   };
+   var name = function (value) {
+      return A2($Html.attr,
+      "name",
+      value);
+   };
+   var multiple = function (bool) {
+      return A2($Html.toggle,
+      "multiple",
+      bool);
+   };
+   var method = function (value) {
+      return A2($Html.attr,
+      "method",
+      value);
+   };
+   var maxlength = function (n) {
+      return A2($Html.attr,
+      "maxlength",
+      $String.show(n));
+   };
+   var list = function (value) {
+      return A2($Html.attr,
+      "list",
+      value);
+   };
+   var formaction = function (value) {
+      return A2($Html.attr,
+      "formaction",
+      value);
+   };
+   var enctype = function (value) {
+      return A2($Html.attr,
+      "enctype",
+      value);
+   };
+   var disabled = function (bool) {
+      return A2($Html.toggle,
+      "disabled",
+      bool);
+   };
+   var autosave = function (value) {
+      return A2($Html.attr,
+      "autosave",
+      value);
+   };
+   var autofocus = function (bool) {
+      return A2($Html.toggle,
+      "autofocus",
+      bool);
+   };
+   var autocomplete = function (bool) {
+      return A2($Html.attr,
+      "autocomplete",
+      bool ? "on" : "off");
+   };
+   var action = function (value) {
+      return A2($Html.attr,
+      "action",
+      value);
+   };
+   var acceptCharset = function (value) {
+      return A2($Html.attr,
+      "acceptCharset",
+      value);
+   };
+   var accept = function (value) {
+      return A2($Html.attr,
+      "accept",
+      value);
+   };
+   var selected = function (bool) {
+      return A2($Html.toggle,
+      "selected",
+      bool);
+   };
+   var placeholder = function (value) {
+      return A2($Html.attr,
+      "placeholder",
+      value);
+   };
+   var checked = function (bool) {
+      return A2($Html.toggle,
+      "checked",
+      bool);
+   };
+   var value = function (value) {
+      return A2($Html.attr,
+      "value",
+      value);
+   };
+   var type$ = function (value) {
+      return A2($Html.attr,
+      "type",
+      value);
+   };
+   var srcdoc = function (value) {
+      return A2($Html.attr,
+      "srcdoc",
+      value);
+   };
+   var seamless = function (bool) {
+      return A2($Html.toggle,
+      "seamless",
+      bool);
+   };
+   var sandbox = function (value) {
+      return A2($Html.attr,
+      "sandbox",
+      value);
+   };
+   var srclang = function (value) {
+      return A2($Html.attr,
+      "srclang",
+      value);
+   };
+   var kind = function (value) {
+      return A2($Html.attr,
+      "kind",
+      value);
+   };
+   var $default = function (bool) {
+      return A2($Html.toggle,
+      "default",
+      bool);
+   };
+   var poster = function (value) {
+      return A2($Html.attr,
+      "poster",
+      value);
+   };
+   var preload = function (bool) {
+      return A2($Html.toggle,
+      "preload",
+      bool);
+   };
+   var loop = function (bool) {
+      return A2($Html.toggle,
+      "loop",
+      bool);
+   };
+   var controls = function (bool) {
+      return A2($Html.toggle,
+      "controls",
+      bool);
+   };
+   var autoplay = function (bool) {
+      return A2($Html.toggle,
+      "autoplay",
+      bool);
+   };
+   var alt = function (value) {
+      return A2($Html.attr,
+      "alt",
+      value);
+   };
+   var width = function (value) {
+      return A2($Html.attr,
+      "width",
+      value);
+   };
+   var height = function (value) {
+      return A2($Html.attr,
+      "height",
+      value);
+   };
+   var src = function (value) {
+      return A2($Html.attr,
+      "src",
+      value);
+   };
+   var scoped = function (bool) {
+      return A2($Html.toggle,
+      "scoped",
+      bool);
+   };
+   var language = function (value) {
+      return A2($Html.attr,
+      "language",
+      value);
+   };
+   var httpEquiv = function (value) {
+      return A2($Html.attr,
+      "httpEquiv",
+      value);
+   };
+   var defer = function (bool) {
+      return A2($Html.toggle,
+      "defer",
+      bool);
+   };
+   var content = function (value) {
+      return A2($Html.attr,
+      "content",
+      value);
+   };
+   var charset = function (value) {
+      return A2($Html.attr,
+      "charset",
+      value);
+   };
+   var async = function (bool) {
+      return A2($Html.toggle,
+      "async",
+      bool);
+   };
+   var tabindex = function (n) {
+      return A2($Html.attr,
+      "tabindex",
+      $String.show(n));
+   };
+   var spellcheck = function (bool) {
+      return A2($Html.attr,
+      "spellcheck",
+      bool ? "true" : "false");
+   };
+   var lang = function (value) {
+      return A2($Html.attr,
+      "lang",
+      value);
+   };
+   var itemprop = function (value) {
+      return A2($Html.attr,
+      "itemprop",
+      value);
+   };
+   var dropzone = function (value) {
+      return A2($Html.attr,
+      "dropzone",
+      value);
+   };
+   var draggable = function (value) {
+      return A2($Html.attr,
+      "draggable",
+      value);
+   };
+   var dir = function (value) {
+      return A2($Html.attr,
+      "dir",
+      value);
+   };
+   var contextmenu = function (value) {
+      return A2($Html.attr,
+      "contextmenu",
+      value);
+   };
+   var contenteditable = function (bool) {
+      return A2($Html.attr,
+      "contenteditable",
+      bool ? "true" : "false");
+   };
+   var accesskey = function ($char) {
+      return A2($Html.attr,
+      "accesskey",
+      $String.fromList(_L.fromArray([$char])));
+   };
+   var title = function (name) {
+      return A2($Html.attr,
+      "title",
+      name);
+   };
+   var id = function (name) {
+      return A2($Html.attr,
+      "id",
+      name);
+   };
+   var hidden = function (bool) {
+      return A2($Html.toggle,
+      "hidden",
+      bool);
+   };
+   var $class = function (name) {
+      return A2($Html.attr,
+      "className",
+      name);
+   };
+   _elm.Html.Attributes.values = {_op: _op
+                                 ,$class: $class
+                                 ,hidden: hidden
+                                 ,id: id
+                                 ,title: title
+                                 ,accesskey: accesskey
+                                 ,contenteditable: contenteditable
+                                 ,contextmenu: contextmenu
+                                 ,dir: dir
+                                 ,draggable: draggable
+                                 ,dropzone: dropzone
+                                 ,itemprop: itemprop
+                                 ,lang: lang
+                                 ,spellcheck: spellcheck
+                                 ,tabindex: tabindex
+                                 ,async: async
+                                 ,charset: charset
+                                 ,content: content
+                                 ,defer: defer
+                                 ,httpEquiv: httpEquiv
+                                 ,language: language
+                                 ,scoped: scoped
+                                 ,src: src
+                                 ,height: height
+                                 ,width: width
+                                 ,alt: alt
+                                 ,autoplay: autoplay
+                                 ,controls: controls
+                                 ,loop: loop
+                                 ,preload: preload
+                                 ,poster: poster
+                                 ,$default: $default
+                                 ,kind: kind
+                                 ,srclang: srclang
+                                 ,sandbox: sandbox
+                                 ,seamless: seamless
+                                 ,srcdoc: srcdoc
+                                 ,type$: type$
+                                 ,value: value
+                                 ,checked: checked
+                                 ,placeholder: placeholder
+                                 ,selected: selected
+                                 ,accept: accept
+                                 ,acceptCharset: acceptCharset
+                                 ,action: action
+                                 ,autocomplete: autocomplete
+                                 ,autofocus: autofocus
+                                 ,autosave: autosave
+                                 ,disabled: disabled
+                                 ,enctype: enctype
+                                 ,formaction: formaction
+                                 ,list: list
+                                 ,maxlength: maxlength
+                                 ,method: method
+                                 ,multiple: multiple
+                                 ,name: name
+                                 ,novalidate: novalidate
+                                 ,pattern: pattern
+                                 ,readonly: readonly
+                                 ,required: required
+                                 ,size: size
+                                 ,$for: $for
+                                 ,form: form
+                                 ,max: max
+                                 ,min: min
+                                 ,step: step
+                                 ,cols: cols
+                                 ,rows: rows
+                                 ,wrap: wrap
+                                 ,ismap: ismap
+                                 ,usemap: usemap
+                                 ,shape: shape
+                                 ,coords: coords
+                                 ,challenge: challenge
+                                 ,keytype: keytype
+                                 ,align: align
+                                 ,cite: cite
+                                 ,href: href
+                                 ,target: target
+                                 ,download: download
+                                 ,downloadAs: downloadAs
+                                 ,hreflang: hreflang
+                                 ,media: media
+                                 ,ping: ping
+                                 ,rel: rel
+                                 ,datetime: datetime
+                                 ,pubdate: pubdate
+                                 ,reversed: reversed
+                                 ,start: start
+                                 ,colspan: colspan
+                                 ,headers: headers
+                                 ,rowspan: rowspan
+                                 ,scope: scope
+                                 ,manifest: manifest};
+   return _elm.Html.Attributes.values;
+};Elm.Html = Elm.Html || {};
+Elm.Html.make = function (_elm) {
+   "use strict";
+   _elm.Html = _elm.Html || {};
+   if (_elm.Html.values)
+   return _elm.Html.values;
+   var _op = {},
+   _N = Elm.Native,
+   _U = _N.Utils.make(_elm),
+   _L = _N.List.make(_elm),
+   _A = _N.Array.make(_elm),
+   _E = _N.Error.make(_elm),
+   $moduleName = "Html",
+   $Graphics$Element = Elm.Graphics.Element.make(_elm),
+   $Graphics$Input = Elm.Graphics.Input.make(_elm),
+   $Maybe = Elm.Maybe.make(_elm),
+   $Native$Html = Elm.Native.Html.make(_elm);
+   var getAnything = $Native$Html.getAnything;
+   var KeyboardEvent = F5(function (a,
+   b,
+   c,
+   d,
+   e) {
+      return {_: {}
+             ,altKey: b
+             ,ctrlKey: c
+             ,keyCode: a
+             ,metaKey: d
+             ,shiftKey: e};
+   });
+   var getKeyboardEvent = $Native$Html.getKeyboardEvent;
+   var MouseEvent = F5(function (a,
+   b,
+   c,
+   d,
+   e) {
+      return {_: {}
+             ,altKey: b
+             ,button: a
+             ,ctrlKey: c
+             ,metaKey: d
+             ,shiftKey: e};
+   });
+   var getMouseEvent = $Native$Html.getMouseEvent;
+   var getValueAndSelection = $Native$Html.getValueAndSelection;
+   var Backward = {ctor: "Backward"};
+   var Forward = {ctor: "Forward"};
+   var getValue = $Native$Html.getValue;
+   var getChecked = $Native$Html.getChecked;
+   var filterMap = $Native$Html.filterMap;
+   var when = F2(function (pred,
+   getter) {
+      return A2($Native$Html.filterMap,
+      function (v) {
+         return pred(v) ? $Maybe.Just(v) : $Maybe.Nothing;
+      },
+      getter);
+   });
+   var on = $Native$Html.on;
+   var Get = {ctor: "Get"};
+   var prop = $Native$Html.pair;
+   var style = $Native$Html.style;
+   var CssProperty = {ctor: "CssProperty"};
+   var toggle = $Native$Html.pair;
+   var attr = $Native$Html.pair;
+   var Attribute = {ctor: "Attribute"};
+   var toElement = $Native$Html.toElement;
+   var text = $Native$Html.text;
+   var node = $Native$Html.node;
+   var Html = {ctor: "Html"};
+   _elm.Html.values = {_op: _op
+                      ,Html: Html
+                      ,node: node
+                      ,text: text
+                      ,toElement: toElement
+                      ,Attribute: Attribute
+                      ,attr: attr
+                      ,toggle: toggle
+                      ,CssProperty: CssProperty
+                      ,style: style
+                      ,prop: prop
+                      ,Get: Get
+                      ,on: on
+                      ,when: when
+                      ,filterMap: filterMap
+                      ,getChecked: getChecked
+                      ,getValue: getValue
+                      ,Forward: Forward
+                      ,Backward: Backward
+                      ,getValueAndSelection: getValueAndSelection
+                      ,getMouseEvent: getMouseEvent
+                      ,MouseEvent: MouseEvent
+                      ,getKeyboardEvent: getKeyboardEvent
+                      ,KeyboardEvent: KeyboardEvent
+                      ,getAnything: getAnything};
+   return _elm.Html.values;
 };
