@@ -4,9 +4,9 @@
     "description": "Use elm-html so that we can reuse the typical TodoMVC CSS and structure.",
     "license": "BSD3",
     "exposed-modules": [],
-    "elm-version": "0.12.3",
+    "elm-version": "0.13",
     "dependencies": {
-        "evancz/elm-html": "0.1.2"
+        "evancz/elm-html": "0.2"
     },
     "repository": "https://github.com/evancz/elm-todomvc.git"
 }
