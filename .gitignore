@@ -1,3 +1,2 @@
-build/
-cache/
-elm_dependencies/
+elm-stuff
+elm.js

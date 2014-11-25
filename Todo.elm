@@ -16,30 +16,30 @@ document for notes on structuring more complex GUIs with Elm:
 https://gist.github.com/evancz/2b2ba366cae1887fe621
 -}
 
-import String
+import Graphics.Element (Element, container, midTop)
 import Html (..)
 import Html.Attributes (..)
 import Html.Events (..)
-import Html.Tags (..)
-import Html.Optimize.RefEq as Ref
-import Maybe
+import Html.Lazy (lazy, lazy2)
+import Json.Decode as Json
+import List
+import Maybe (Maybe, (?))
+import Signal
+import String
 import Window
-
-import Graphics.Input
-import Graphics.Input as Input
 
 
 ---- MODEL ----
 
 -- The full application state of our todo app.
-type State =
-    { tasks      : [Task]
+type alias State =
+    { tasks      : List Task
     , field      : String
     , uid        : Int
     , visibility : String
     }
 
-type Task =
+type alias Task =
     { description : String
     , completed   : Bool
     , editing     : Bool
@@ -65,10 +65,10 @@ emptyState =
 
 ---- UPDATE ----
 
--- A description of the kinds of actions that can be performed on the state of
+-- A description of the kinds of updates that can be performed on the state of
 -- the application. See the following post for more info on this pattern and
 -- some alternatives: https://gist.github.com/evancz/2b2ba366cae1887fe621
-data Action
+type Update
     = NoOp
     | UpdateField String
     | EditingTask Int Bool
@@ -80,10 +80,10 @@ data Action
     | CheckAll Bool
     | ChangeVisibility String
 
--- How we step the state forward for any given action
-step : Action -> State -> State
-step action state =
-    case action of
+-- How we step the state forward for any given update
+step : Update -> State -> State
+step update state =
+    case update of
       NoOp -> state
 
       Add ->
@@ -98,26 +98,26 @@ step action state =
           { state | field <- str }
 
       EditingTask id isEditing ->
-          let update t = if t.id == id then { t | editing <- isEditing } else t
-          in  { state | tasks <- map update state.tasks }
+          let stepTask t = if t.id == id then { t | editing <- isEditing } else t
+          in  { state | tasks <- List.map stepTask state.tasks }
 
       UpdateTask id task ->
-          let update t = if t.id == id then { t | description <- task } else t
-          in  { state | tasks <- map update state.tasks }
+          let stepTask t = if t.id == id then { t | description <- task } else t
+          in  { state | tasks <- List.map stepTask state.tasks }
 
       Delete id ->
-          { state | tasks <- filter (\t -> t.id /= id) state.tasks }
+          { state | tasks <- List.filter (\t -> t.id /= id) state.tasks }
 
       DeleteComplete ->
-          { state | tasks <- filter (not << .completed) state.tasks }
+          { state | tasks <- List.filter (not << .completed) state.tasks }
 
       Check id isCompleted ->
-          let update t = if t.id == id then { t | completed <- isCompleted } else t
-          in  { state | tasks <- map update state.tasks }
+          let stepTask t = if t.id == id then { t | completed <- isCompleted } else t
+          in  { state | tasks <- List.map stepTask state.tasks }
 
       CheckAll isCompleted ->
-          let update t = { t | completed <- isCompleted } in
-          { state | tasks <- map update state.tasks }
+          let stepTask t = { t | completed <- isCompleted } in
+          { state | tasks <- List.map stepTask state.tasks }
 
       ChangeVisibility visibility ->
           { state | visibility <- visibility }
@@ -129,20 +129,26 @@ view : State -> Html
 view state =
     div
       [ class "todomvc-wrapper"
-      , style [ prop "visibility" "hidden" ]
+      , style [ ("visibility", "hidden") ]
       ]
       [ section
           [ id "todoapp" ]
-          [ Ref.lazy taskEntry state.field
-          , Ref.lazy2 taskList state.visibility state.tasks
-          , Ref.lazy2 controls state.visibility state.tasks
+          [ lazy taskEntry state.field
+          , lazy2 taskList state.visibility state.tasks
+          , lazy2 controls state.visibility state.tasks
           ]
       , infoFooter
       ]
 
-onEnter : Input.Handle a -> a -> Attribute
-onEnter handle value =
-    on "keydown" (when (\k -> k.keyCode == 13) getKeyboardEvent) handle (always value)
+onEnter : Signal.Message -> Attribute
+onEnter message =
+    on "keydown"
+      (Json.customDecoder keyCode is13)
+      (always message)
+
+is13 : Int -> Result String ()
+is13 code =
+  if code == 13 then Ok () else Err "not the right key code"
 
 taskEntry : String -> Html
 taskEntry task =
@@ -155,13 +161,13 @@ taskEntry task =
           , autofocus True
           , value task
           , name "newTodo"
-          , on "input" getValue actions.handle UpdateField
-          , onEnter actions.handle Add
+          , on "input" targetValue (Signal.send updates << UpdateField)
+          , onEnter (Signal.send updates Add)
           ]
           []
       ]
 
-taskList : String -> [Task] -> Html
+taskList : String -> List Task -> Html
 taskList visibility tasks =
     let isVisible todo =
             case visibility of
@@ -169,20 +175,20 @@ taskList visibility tasks =
               "Active" -> not todo.completed
               "All" -> True
 
-        allCompleted = all .completed tasks
+        allCompleted = List.all .completed tasks
 
-        cssVisibility = if isEmpty tasks then "hidden" else "visible"
+        cssVisibility = if List.isEmpty tasks then "hidden" else "visible"
     in
     section
       [ id "main"
-      , style [ prop "visibility" cssVisibility ]
+      , style [ ("visibility", cssVisibility) ]
       ]
       [ input
           [ id "toggle-all"
           , type' "checkbox"
           , name "toggle"
           , checked allCompleted
-          , onclick actions.handle (\_ -> CheckAll (not allCompleted))
+          , onClick (Signal.send updates (CheckAll (not allCompleted)))
           ]
           []
       , label
@@ -190,7 +196,7 @@ taskList visibility tasks =
           [ text "Mark all as complete" ]
       , ul
           [ id "todo-list" ]
-          (map todoItem (filter isVisible tasks))
+          (List.map todoItem (List.filter isVisible tasks))
       ]
 
 todoItem : Task -> Html
@@ -207,15 +213,15 @@ todoItem todo =
               [ class "toggle"
               , type' "checkbox"
               , checked todo.completed
-              , onclick actions.handle (\_ -> Check todo.id (not todo.completed))
+              , onClick (Signal.send updates (Check todo.id (not todo.completed)))
               ]
               []
           , label
-              [ ondblclick actions.handle (\_ -> EditingTask todo.id True) ]
+              [ onDoubleClick (Signal.send updates (EditingTask todo.id True)) ]
               [ text todo.description ]
           , button
               [ class "destroy"
-              , onclick actions.handle (always (Delete todo.id))
+              , onClick (Signal.send updates (Delete todo.id))
               ]
               []
           ]
@@ -223,27 +229,27 @@ todoItem todo =
           [ class "edit"
           , value todo.description
           , name "title"
-          , id ("todo-" ++ show todo.id)
-          , on "input" getValue actions.handle (UpdateTask todo.id)
-          , onblur actions.handle (EditingTask todo.id False)
-          , onEnter actions.handle (EditingTask todo.id False)
+          , id ("todo-" ++ toString todo.id)
+          , on "input" targetValue (Signal.send updates << UpdateTask todo.id)
+          , onBlur (Signal.send updates (EditingTask todo.id False))
+          , onEnter (Signal.send updates (EditingTask todo.id False))
           ]
           []
       ]
 
-controls : String -> [Task] -> Html
+controls : String -> List Task -> Html
 controls visibility tasks =
-    let tasksCompleted = length (filter .completed tasks)
-        tasksLeft = length tasks - tasksCompleted
+    let tasksCompleted = List.length (List.filter .completed tasks)
+        tasksLeft = List.length tasks - tasksCompleted
         item_ = if tasksLeft == 1 then " item" else " items"
     in
     footer
       [ id "footer"
-      , hidden (isEmpty tasks)
+      , hidden (List.isEmpty tasks)
       ]
       [ span
           [ id "todo-count" ]
-          [ strong [] [ text (show tasksLeft) ]
+          [ strong [] [ text (toString tasksLeft) ]
           , text (item_ ++ " left")
           ]
       , ul
@@ -258,16 +264,16 @@ controls visibility tasks =
           [ class "clear-completed"
           , id "clear-completed"
           , hidden (tasksCompleted == 0)
-          , onclick actions.handle (always DeleteComplete)
+          , onClick (Signal.send updates DeleteComplete)
           ]
-          [ text ("Clear completed (" ++ show tasksCompleted ++ ")") ]
+          [ text ("Clear completed (" ++ toString tasksCompleted ++ ")") ]
       ]
 
 visibilitySwap : String -> String -> String -> Html
 visibilitySwap uri visibility actualVisibility =
     let className = if visibility == actualVisibility then "selected" else "" in
     li
-      [ onclick actions.handle (always (ChangeVisibility visibility)) ]
+      [ onClick (Signal.send updates (ChangeVisibility visibility)) ]
       [ a [ class className, href uri ] [ text visibility ] ]
 
 infoFooter : Html
@@ -287,7 +293,7 @@ infoFooter =
 
 -- wire the entire application together
 main : Signal Element
-main = lift2 scene state Window.dimensions
+main = Signal.map2 scene state Window.dimensions
 
 scene : State -> (Int,Int) -> Element
 scene state (w,h) =
@@ -295,14 +301,14 @@ scene state (w,h) =
 
 -- manage the state of our application over time
 state : Signal State
-state = foldp step startingState actions.signal
+state = Signal.foldp step startingState (Signal.subscribe updates)
 
 startingState : State
-startingState = Maybe.maybe emptyState identity getStorage
+startingState = getStorage ? emptyState
 
--- actions from user input
-actions : Input.Input Action
-actions = Input.input NoOp
+-- updates from user input
+updates : Signal.Channel Update
+updates = Signal.channel NoOp
 
 port focus : Signal String
 port focus =
@@ -311,9 +317,12 @@ port focus =
               EditingTask id bool -> bool
               _ -> False
 
-        toSelector (EditingTask id _) = ("#todo-" ++ show id)
+        toSelector (EditingTask id _) = ("#todo-" ++ toString id)
     in
-        toSelector <~ keepIf needsFocus (EditingTask 0 True) actions.signal
+        Signal.subscribe updates
+          |> Signal.keepIf needsFocus (EditingTask 0 True)
+          |> Signal.map toSelector
+
 
 -- interactions with localStorage to save app state
 port getStorage : Maybe State
