@@ -23,7 +23,7 @@ import Html.Events (..)
 import Html.Lazy (lazy, lazy2)
 import Json.Decode as Json
 import List
-import Maybe (Maybe, (?))
+import Maybe
 import Signal
 import String
 import Window
@@ -304,7 +304,8 @@ state : Signal State
 state = Signal.foldp step startingState (Signal.subscribe updates)
 
 startingState : State
-startingState = getStorage ? emptyState
+startingState =
+  Maybe.withDefault emptyState getStorage
 
 -- updates from user input
 updates : Signal.Channel Update
