@@ -1,12 +1,15 @@
 {
-    "version": "0.1",
+    "version": "1.0.0",
     "summary": "TodoMVC created with Elm and elm-html",
     "description": "Use elm-html so that we can reuse the typical TodoMVC CSS and structure.",
     "license": "BSD3",
+    "source-directories": [
+        "."
+    ],
     "exposed-modules": [],
-    "elm-version": "0.13",
     "dependencies": {
-        "evancz/elm-html": "0.2"
+        "elm-lang/core": "1.0.0 <= v < 2.0.0",
+        "evancz/elm-html": "1.0.0 <= v < 2.0.0"
     },
     "repository": "https://github.com/evancz/elm-todomvc.git"
 }
