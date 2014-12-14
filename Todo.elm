@@ -89,7 +89,7 @@ step update state =
       Add ->
           { state | uid <- state.uid + 1
                   , field <- ""
-                  , tasks <- if String.isEmpty state.field
+                  , tasks <- if String.isEmpty <| String.trim state.field
                                then state.tasks
                                else state.tasks ++ [newTask state.field state.uid]
           }
