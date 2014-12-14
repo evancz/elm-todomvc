@@ -49,7 +49,7 @@ type alias Task =
 newTask : String -> Int -> Task
 newTask desc id =
     { description = desc
-    , completed = False 
+    , completed = False
     , editing = False
     , id = id
     }
@@ -89,7 +89,7 @@ step update state =
       Add ->
           { state | uid <- state.uid + 1
                   , field <- ""
-                  , tasks <- if String.isEmpty state.field
+                  , tasks <- if String.isEmpty <| String.trim state.field
                                then state.tasks
                                else state.tasks ++ [newTask state.field state.uid]
           }
@@ -143,16 +143,16 @@ view state =
 onEnter : Signal.Message -> Attribute
 onEnter message =
     on "keydown"
-      (Json.customDecoder keyCode is13)
+      (Json.customDecoder keyCode isEnter)
       (always message)
 
-is13 : Int -> Result String ()
-is13 code =
+isEnter : Int -> Result String ()
+isEnter code =
   if code == 13 then Ok () else Err "not the right key code"
 
 taskEntry : String -> Html
 taskEntry task =
-    header 
+    header
       [ id "header" ]
       [ h1 [] [ text "todos" ]
       , input
