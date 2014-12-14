@@ -143,11 +143,11 @@ view state =
 onEnter : Signal.Message -> Attribute
 onEnter message =
     on "keydown"
-      (Json.customDecoder keyCode is13)
+      (Json.customDecoder keyCode isEnter)
       (always message)
 
-is13 : Int -> Result String ()
-is13 code =
+isEnter : Int -> Result String ()
+isEnter code =
   if code == 13 then Ok () else Err "not the right key code"
 
 taskEntry : String -> Html
