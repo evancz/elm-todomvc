@@ -49,7 +49,7 @@ type alias Task =
 newTask : String -> Int -> Task
 newTask desc id =
     { description = desc
-    , completed = False 
+    , completed = False
     , editing = False
     , id = id
     }
@@ -152,7 +152,7 @@ is13 code =
 
 taskEntry : String -> Html
 taskEntry task =
-    header 
+    header
       [ id "header" ]
       [ h1 [] [ text "todos" ]
       , input
