@@ -16,7 +16,6 @@ document for notes on structuring more complex GUIs with Elm:
 https://gist.github.com/evancz/2b2ba366cae1887fe621
 -}
 
-import Graphics.Element (Element, container, midTop)
 import Html (..)
 import Html.Attributes (..)
 import Html.Events (..)
@@ -32,7 +31,7 @@ import Window
 ---- MODEL ----
 
 -- The full application state of our todo app.
-type alias State =
+type alias Model =
     { tasks      : List Task
     , field      : String
     , uid        : Int
@@ -54,8 +53,8 @@ newTask desc id =
     , id = id
     }
 
-emptyState : State
-emptyState =
+emptyModel : Model
+emptyModel =
     { tasks = []
     , visibility = "All"
     , field = ""
@@ -65,10 +64,10 @@ emptyState =
 
 ---- UPDATE ----
 
--- A description of the kinds of updates that can be performed on the state of
--- the application. See the following post for more info on this pattern and
--- some alternatives: https://gist.github.com/evancz/2b2ba366cae1887fe621
-type Update
+-- A description of the kinds of actions that can be performed on the model of
+-- our application. See the following post for more info on this pattern and
+-- some alternatives: http://elm-lang.org/learn/Architecture.elm
+type Action
     = NoOp
     | UpdateField String
     | EditingTask Int Bool
@@ -80,62 +79,68 @@ type Update
     | CheckAll Bool
     | ChangeVisibility String
 
--- How we step the state forward for any given update
-step : Update -> State -> State
-step update state =
-    case update of
-      NoOp -> state
+-- How we update our Model on a given Action?
+update : Action -> Model -> Model
+update action model =
+    case action of
+      NoOp -> model
 
       Add ->
-          { state | uid <- state.uid + 1
-                  , field <- ""
-                  , tasks <- if String.isEmpty state.field
-                               then state.tasks
-                               else state.tasks ++ [newTask state.field state.uid]
+          { model |
+              uid <- model.uid + 1,
+              field <- "",
+              tasks <-
+                  if String.isEmpty model.field
+                    then model.tasks
+                    else model.tasks ++ [newTask model.field model.uid]
           }
 
       UpdateField str ->
-          { state | field <- str }
+          { model | field <- str }
 
       EditingTask id isEditing ->
-          let stepTask t = if t.id == id then { t | editing <- isEditing } else t
-          in  { state | tasks <- List.map stepTask state.tasks }
+          let updateTask t = if t.id == id then { t | editing <- isEditing } else t
+          in
+              { model | tasks <- List.map updateTask model.tasks }
 
       UpdateTask id task ->
-          let stepTask t = if t.id == id then { t | description <- task } else t
-          in  { state | tasks <- List.map stepTask state.tasks }
+          let updateTask t = if t.id == id then { t | description <- task } else t
+          in
+              { model | tasks <- List.map updateTask model.tasks }
 
       Delete id ->
-          { state | tasks <- List.filter (\t -> t.id /= id) state.tasks }
+          { model | tasks <- List.filter (\t -> t.id /= id) model.tasks }
 
       DeleteComplete ->
-          { state | tasks <- List.filter (not << .completed) state.tasks }
+          { model | tasks <- List.filter (not << .completed) model.tasks }
 
       Check id isCompleted ->
-          let stepTask t = if t.id == id then { t | completed <- isCompleted } else t
-          in  { state | tasks <- List.map stepTask state.tasks }
+          let updateTask t = if t.id == id then { t | completed <- isCompleted } else t
+          in
+              { model | tasks <- List.map updateTask model.tasks }
 
       CheckAll isCompleted ->
-          let stepTask t = { t | completed <- isCompleted } in
-          { state | tasks <- List.map stepTask state.tasks }
+          let updateTask t = { t | completed <- isCompleted }
+          in
+              { model | tasks <- List.map updateTask model.tasks }
 
       ChangeVisibility visibility ->
-          { state | visibility <- visibility }
+          { model | visibility <- visibility }
 
 
 ---- VIEW ----
 
-view : State -> Html
-view state =
+view : Model -> Html
+view model =
     div
       [ class "todomvc-wrapper"
       , style [ ("visibility", "hidden") ]
       ]
       [ section
           [ id "todoapp" ]
-          [ lazy taskEntry state.field
-          , lazy2 taskList state.visibility state.tasks
-          , lazy2 controls state.visibility state.tasks
+          [ lazy taskEntry model.field
+          , lazy2 taskList model.visibility model.tasks
+          , lazy2 controls model.visibility model.tasks
           ]
       , infoFooter
       ]
@@ -292,23 +297,19 @@ infoFooter =
 ---- INPUTS ----
 
 -- wire the entire application together
-main : Signal Element
-main = Signal.map2 scene state Window.dimensions
+main : Signal Html
+main = Signal.map view model
 
-scene : State -> (Int,Int) -> Element
-scene state (w,h) =
-    container w h midTop (toElement 550 h (view state))
+-- manage the model of our application over time
+model : Signal Model
+model = Signal.foldp update initialModel (Signal.subscribe updates)
 
--- manage the state of our application over time
-state : Signal State
-state = Signal.foldp step startingState (Signal.subscribe updates)
-
-startingState : State
-startingState =
-  Maybe.withDefault emptyState getStorage
+initialModel : Model
+initialModel =
+  Maybe.withDefault emptyModel getStorage
 
 -- updates from user input
-updates : Signal.Channel Update
+updates : Signal.Channel Action
 updates = Signal.channel NoOp
 
 port focus : Signal String
@@ -325,8 +326,8 @@ port focus =
           |> Signal.map toSelector
 
 
--- interactions with localStorage to save app state
-port getStorage : Maybe State
+-- interactions with localStorage to save the model
+port getStorage : Maybe Model
 
-port setStorage : Signal State
-port setStorage = state
+port setStorage : Signal Model
+port setStorage = model
