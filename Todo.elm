@@ -13,7 +13,7 @@ this in the Pong tutorial: http://elm-lang.org/blog/Pong.elm
 
 This program is not particularly large, so definitely see the following
 document for notes on structuring more complex GUIs with Elm:
-https://gist.github.com/evancz/2b2ba366cae1887fe621
+http://elm-lang.org/learn/Architecture.elm
 -}
 
 import Html (..)
