@@ -211,7 +211,7 @@ todoItem todo =
     in
 
     li
-      [ class className ]
+      [ class className, key (toString todo.id) ]
       [ div
           [ class "view" ]
           [ input
