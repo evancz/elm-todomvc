@@ -15,7 +15,15 @@
 var storedState = localStorage.getItem('elm-todo-state');
 var startingState = storedState ? JSON.parse(storedState) : null;
 
-var todomvc = Elm.fullscreen(Elm.Todo, { getStorage: startingState });
+function calculatePath () {
+   return window.location.hash.replace(/^#\/?/, '')
+}
+
+var todomvc = Elm.fullscreen(Elm.Todo, {
+    getStorage: startingState,
+    path: calculatePath()
+});
+
 todomvc.ports.focus.subscribe(function(selector) {
     setTimeout(function() {
         var nodes = document.querySelectorAll(selector);
@@ -24,6 +32,10 @@ todomvc.ports.focus.subscribe(function(selector) {
         }
     }, 50);
 });
+
+window.onhashchange = function () {
+    todomvc.ports.path.send(calculatePath ());
+}
 
 todomvc.ports.setStorage.subscribe(function(state) {
     localStorage.setItem('elm-todo-state', JSON.stringify(state));

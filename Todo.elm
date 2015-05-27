@@ -81,6 +81,15 @@ type Action
     | ChangeVisibility String
 
 
+-- Based on the path provided, get to the corresponding action.
+pathToVisibility : String -> Action
+pathToVisibility p =
+    case p of
+      "active" -> ChangeVisibility "Active"
+      "completed" -> ChangeVisibility "Completed"
+      otherwise -> ChangeVisibility "All"
+
+
 -- How we update our Model on a given Action?
 update : Action -> Model -> Model
 update action model =
@@ -312,13 +321,15 @@ main =
 -- manage the model of our application over time
 model : Signal Model
 model =
-  Signal.foldp update initialModel actions.signal
+  -- Merge signals for user input and path change.
+  let signal = Signal.merge actions.signal <| Signal.map pathToVisibility path
+  in
+  Signal.foldp update initialModel signal
 
 
 initialModel : Model
 initialModel =
   Maybe.withDefault emptyModel getStorage
-
 
 -- actions from user input
 actions : Signal.Mailbox Action
@@ -345,3 +356,5 @@ port getStorage : Maybe Model
 
 port setStorage : Signal Model
 port setStorage = model
+
+port path : Signal String
