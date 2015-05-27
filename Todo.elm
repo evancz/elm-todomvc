@@ -186,7 +186,6 @@ taskEntry address task =
           []
       ]
 
-
 taskList : Address Action -> String -> List Task -> Html
 taskList address visibility tasks =
     let isVisible todo =

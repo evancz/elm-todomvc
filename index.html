@@ -33,9 +33,12 @@ todomvc.ports.focus.subscribe(function(selector) {
     }, 50);
 });
 
-window.onhashchange = function () {
-    todomvc.ports.path.send(calculatePath ());
+function sendPath () {
+    todomvc.ports.path.send(calculatePath());
 }
+
+sendPath();
+window.onhashchange = sendPath;
 
 todomvc.ports.setStorage.subscribe(function(state) {
     localStorage.setItem('elm-todo-state', JSON.stringify(state));
