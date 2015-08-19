@@ -135,14 +135,16 @@ update action model =
 view : Address Action -> Model -> Html
 view address model =
     div
-      [ class "todomvc-wrapper"
-      , style [ ("visibility", "hidden") ]
+      [
+        class "todomvc-wrapper",
+        style [ ("visibility", "hidden") ]
       ]
       [ section
           [ id "todoapp" ]
-          [ lazy2 taskEntry address model.field
-          , lazy3 taskList address model.visibility model.tasks
-          , lazy3 controls address model.visibility model.tasks
+          [
+            lazy2 taskEntry address model.field,
+            lazy3 taskList address model.visibility model.tasks,
+            lazy3 controls address model.visibility model.tasks
           ]
       , infoFooter
       ]
@@ -164,15 +166,17 @@ taskEntry : Address Action -> String -> Html
 taskEntry address task =
     header
       [ id "header" ]
-      [ h1 [] [ text "todos" ]
-      , input
-          [ id "new-todo"
-          , placeholder "What needs to be done?"
-          , autofocus True
-          , value task
-          , name "newTodo"
-          , on "input" targetValue (Signal.message address << UpdateField)
-          , onEnter address Add
+      [
+        h1 [] [ text "todos" ],
+        input
+          [
+            id "new-todo",
+            placeholder "What needs to be done?",
+            autofocus True,
+            value task,
+            name "newTodo",
+            on "input" targetValue (Signal.message address << UpdateField),
+            onEnter address Add
           ]
           []
       ]
@@ -191,21 +195,28 @@ taskList address visibility tasks =
         cssVisibility = if List.isEmpty tasks then "hidden" else "visible"
     in
     section
-      [ id "main"
-      , style [ ("visibility", cssVisibility) ]
+      [
+        id "main",
+        style [ ("visibility", cssVisibility) ]
       ]
-      [ input
-          [ id "toggle-all"
-          , type' "checkbox"
-          , name "toggle"
-          , checked allCompleted
-          , onClick address (CheckAll (not allCompleted))
+      [
+        input
+          [
+            id "toggle-all",
+            type' "checkbox",
+            name "toggle",
+            checked allCompleted,
+            onClick address (CheckAll (not allCompleted))
           ]
           []
-      , label
+        ,
+
+        label
           [ for "toggle-all" ]
           [ text "Mark all as complete" ]
-      , ul
+        ,
+
+        ul
           [ id "todo-list" ]
           (List.map (todoItem address) (List.filter isVisible tasks))
       ]
@@ -215,32 +226,43 @@ todoItem : Address Action -> Task -> Html
 todoItem address todo =
     li
       [ classList [ ("completed", todo.completed), ("editing", todo.editing) ] ]
-      [ div
+      [
+        div
           [ class "view" ]
-          [ input
-              [ class "toggle"
-              , type' "checkbox"
-              , checked todo.completed
-              , onClick address (Check todo.id (not todo.completed))
+          [
+            input
+              [
+                class "toggle",
+                type' "checkbox",
+                checked todo.completed,
+                onClick address (Check todo.id (not todo.completed))
               ]
               []
-          , label
+            ,
+
+            label
               [ onDoubleClick address (EditingTask todo.id True) ]
               [ text todo.description ]
-          , button
-              [ class "destroy"
-              , onClick address (Delete todo.id)
+            ,
+
+            button
+              [
+                class "destroy",
+                onClick address (Delete todo.id)
               ]
               []
           ]
-      , input
-          [ class "edit"
-          , value todo.description
-          , name "title"
-          , id ("todo-" ++ toString todo.id)
-          , on "input" targetValue (Signal.message address << UpdateTask todo.id)
-          , onBlur address (EditingTask todo.id False)
-          , onEnter address (EditingTask todo.id False)
+        ,
+
+        input
+          [
+            class "edit",
+            value todo.description,
+            name "title",
+            id ("todo-" ++ toString todo.id),
+            on "input" targetValue (Signal.message address << UpdateTask todo.id),
+            onBlur address (EditingTask todo.id False),
+            onEnter address (EditingTask todo.id False)
           ]
           []
       ]
@@ -253,27 +275,36 @@ controls address visibility tasks =
         item_ = if tasksLeft == 1 then " item" else " items"
     in
     footer
-      [ id "footer"
-      , hidden (List.isEmpty tasks)
+      [
+        id "footer",
+        hidden (List.isEmpty tasks)
       ]
-      [ span
+      [
+        span
           [ id "todo-count" ]
-          [ strong [] [ text (toString tasksLeft) ]
-          , text (item_ ++ " left")
+          [
+            strong [] [ text (toString tasksLeft) ],
+            text (item_ ++ " left")
           ]
-      , ul
+        ,
+
+        ul
           [ id "filters" ]
-          [ visibilitySwap address "#/" "All" visibility
-          , text " "
-          , visibilitySwap address "#/active" "Active" visibility
-          , text " "
-          , visibilitySwap address "#/completed" "Completed" visibility
+          [
+            visibilitySwap address "#/" "All" visibility,
+            text " ",
+            visibilitySwap address "#/active" "Active" visibility,
+            text " ",
+            visibilitySwap address "#/completed" "Completed" visibility
           ]
-      , button
-          [ class "clear-completed"
-          , id "clear-completed"
-          , hidden (tasksCompleted == 0)
-          , onClick address DeleteComplete
+        ,
+
+        button
+          [
+            class "clear-completed",
+            id "clear-completed",
+            hidden (tasksCompleted == 0),
+            onClick address DeleteComplete
           ]
           [ text ("Clear completed (" ++ toString tasksCompleted ++ ")") ]
       ]
@@ -289,14 +320,19 @@ visibilitySwap address uri visibility actualVisibility =
 infoFooter : Html
 infoFooter =
     footer [ id "info" ]
-      [ p [] [ text "Double-click to edit a todo" ]
-      , p []
-          [ text "Written by "
-          , a [ href "https://github.com/evancz" ] [ text "Evan Czaplicki" ]
+      [
+        p [] [ text "Double-click to edit a todo" ],
+        p []
+          [
+            text "Written by ",
+            a [ href "https://github.com/evancz" ] [ text "Evan Czaplicki" ]
           ]
-      , p []
-          [ text "Part of "
-          , a [ href "http://todomvc.com" ] [ text "TodoMVC" ]
+        ,
+
+        p []
+          [
+            text "Part of ",
+            a [ href "http://todomvc.com" ] [ text "TodoMVC" ]
           ]
       ]
 
