@@ -13,7 +13,7 @@ this in the Pong tutorial: http://elm-lang.org/blog/Pong.elm
 
 This program is not particularly large, so definitely see the following
 document for notes on structuring more complex GUIs with Elm:
-http://elm-lang.org/learn/Architecture.elm
+https://github.com/evancz/elm-architecture-tutorial
 -}
 
 import Html exposing (..)
@@ -67,7 +67,7 @@ emptyModel =
 
 -- A description of the kinds of actions that can be performed on the model of
 -- our application. See the following post for more info on this pattern and
--- some alternatives: http://elm-lang.org/learn/Architecture.elm
+-- some alternatives: https://github.com/evancz/elm-architecture-tutorial
 type Action
     = NoOp
     | UpdateField String
