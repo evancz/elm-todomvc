@@ -89,45 +89,45 @@ update action model =
 
       Add ->
           { model |
-              uid = model.uid + 1,
-              field = "",
-              tasks =
+              uid <- model.uid + 1,
+              field <- "",
+              tasks <-
                   if String.isEmpty model.field
                     then model.tasks
                     else model.tasks ++ [newTask model.field model.uid]
           }
 
       UpdateField str ->
-          { model | field = str }
+          { model | field <- str }
 
       EditingTask id isEditing ->
-          let updateTask t = if t.id == id then { t | editing = isEditing } else t
+          let updateTask t = if t.id == id then { t | editing <- isEditing } else t
           in
-              { model | tasks = List.map updateTask model.tasks }
+              { model | tasks <- List.map updateTask model.tasks }
 
       UpdateTask id task ->
-          let updateTask t = if t.id == id then { t | description = task } else t
+          let updateTask t = if t.id == id then { t | description <- task } else t
           in
-              { model | tasks = List.map updateTask model.tasks }
+              { model | tasks <- List.map updateTask model.tasks }
 
       Delete id ->
-          { model | tasks = List.filter (\t -> t.id /= id) model.tasks }
+          { model | tasks <- List.filter (\t -> t.id /= id) model.tasks }
 
       DeleteComplete ->
-          { model | tasks = List.filter (not << .completed) model.tasks }
+          { model | tasks <- List.filter (not << .completed) model.tasks }
 
       Check id isCompleted ->
-          let updateTask t = if t.id == id then { t | completed = isCompleted } else t
+          let updateTask t = if t.id == id then { t | completed <- isCompleted } else t
           in
-              { model | tasks = List.map updateTask model.tasks }
+              { model | tasks <- List.map updateTask model.tasks }
 
       CheckAll isCompleted ->
-          let updateTask t = { t | completed = isCompleted }
+          let updateTask t = { t | completed <- isCompleted }
           in
-              { model | tasks = List.map updateTask model.tasks }
+              { model | tasks <- List.map updateTask model.tasks }
 
       ChangeVisibility visibility ->
-          { model | visibility = visibility }
+          { model | visibility <- visibility }
 
 
 ---- VIEW ----
@@ -184,7 +184,7 @@ taskList address visibility tasks =
             case visibility of
               "Completed" -> todo.completed
               "Active" -> not todo.completed
-              _ -> True
+              "All" -> True
 
         allCompleted = List.all .completed tasks
 
@@ -333,10 +333,7 @@ port focus =
               EditingTask id bool -> bool
               _ -> False
 
-        toSelector act =
-            case act of
-              EditingTask id _ -> "#todo-" ++ toString id
-              _ -> ""
+        toSelector (EditingTask id _) = ("#todo-" ++ toString id)
     in
         actions.signal
           |> Signal.filter needsFocus (EditingTask 0 True)
