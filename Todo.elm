@@ -333,7 +333,10 @@ port focus =
               EditingTask id bool -> bool
               _ -> False
 
-        toSelector (EditingTask id _) = ("#todo-" ++ toString id)
+        toSelector act =
+            case act of
+              EditingTask id _ -> "#todo-" ++ toString id
+              _ -> ""
     in
         actions.signal
           |> Signal.filter needsFocus (EditingTask 0 True)
