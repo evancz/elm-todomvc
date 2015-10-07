@@ -184,7 +184,7 @@ taskList address visibility tasks =
             case visibility of
               "Completed" -> todo.completed
               "Active" -> not todo.completed
-              "All" -> True
+              _ -> True
 
         allCompleted = List.all .completed tasks
 
