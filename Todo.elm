@@ -73,6 +73,7 @@ type Action
     | UpdateField String
     | EditingTask Int Bool
     | UpdateTask Int String
+    | SubmitTask Int
     | Add
     | Delete Int
     | DeleteComplete
@@ -92,9 +93,9 @@ update action model =
               uid <- model.uid + 1,
               field <- "",
               tasks <-
-                  if String.isEmpty model.field
-                    then model.tasks
-                    else model.tasks ++ [newTask model.field model.uid]
+                  if isValidString model.field
+                    then model.tasks ++ [newTask model.field model.uid]
+                    else model.tasks
           }
 
       UpdateField str ->
@@ -109,6 +110,14 @@ update action model =
           let updateTask t = if t.id == id then { t | description <- task } else t
           in
               { model | tasks <- List.map updateTask model.tasks }
+
+      {- UpdateTask updates the description, but we want to know when it was
+      actually submitted, so we can filter out empty descriptions. -}
+      SubmitTask id ->
+          let
+              newModel = update (EditingTask id False) model
+          in
+              { newModel | tasks <- List.filter (\t -> isValidString t.description && t.id /= id) newModel.tasks }
 
       Delete id ->
           { model | tasks <- List.filter (\t -> t.id /= id) model.tasks }
@@ -129,6 +138,10 @@ update action model =
       ChangeVisibility visibility ->
           { model | visibility <- visibility }
 
+-- Detrmine if a String is valid and should be added.
+isValidString : String -> Bool
+isValidString string =
+    String.isEmpty (String.trim string) == False
 
 ---- VIEW ----
 
@@ -239,8 +252,8 @@ todoItem address todo =
           , name "title"
           , id ("todo-" ++ toString todo.id)
           , on "input" targetValue (Signal.message address << UpdateTask todo.id)
-          , onBlur address (EditingTask todo.id False)
-          , onEnter address (EditingTask todo.id False)
+          , onBlur address (SubmitTask todo.id)
+          , onEnter address (SubmitTask todo.id)
           ]
           []
       ]
