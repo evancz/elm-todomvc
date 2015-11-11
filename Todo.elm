@@ -9,11 +9,11 @@ This application is broken up into four distinct parts:
   4. Inputs - the signals necessary to manage events
 
 This clean division of concerns is a core part of Elm. You can read more about
-this in the Pong tutorial: http://elm-lang.org/blog/Pong.elm
+this in the Pong tutorial: http://elm-lang.org/blog/making-pong
 
 This program is not particularly large, so definitely see the following
-document for notes on structuring more complex GUIs with Elm:
-http://elm-lang.org/learn/Architecture.elm
+for notes on structuring more complex GUIs with Elm:
+https://github.com/evancz/elm-architecture-tutorial/
 -}
 
 import Html exposing (..)
@@ -66,8 +66,8 @@ emptyModel =
 ---- UPDATE ----
 
 -- A description of the kinds of actions that can be performed on the model of
--- our application. See the following post for more info on this pattern and
--- some alternatives: http://elm-lang.org/learn/Architecture.elm
+-- our application. See the following for more info on this pattern and
+-- some alternatives: https://github.com/evancz/elm-architecture-tutorial/
 type Action
     = NoOp
     | UpdateField String
