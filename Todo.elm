@@ -23,8 +23,6 @@ import Html.Lazy exposing (lazy, lazy2, lazy3)
 import Json.Decode as Json
 import Signal exposing (Signal, Address)
 import String
-import Window
-
 
 ---- MODEL ----
 
