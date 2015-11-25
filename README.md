@@ -16,7 +16,7 @@ particular text fields when necessary.
 Run the following command from the root of this project:
 
 ```bash
-elm-make Todo.elm
+elm-make Todo.elm --output elm.js
 ```
 
 Then open `index.html` in your browser!
