@@ -12,6 +12,7 @@ this in <http://guide.elm-lang.org/architecture/index.html>
 -}
 
 import Html exposing (..)
+import Html.App as App
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Html.Lazy exposing (lazy, lazy2, lazy3)
@@ -20,10 +21,10 @@ import String
 
 
 
-main : Program {}
+main : Program (Maybe Model)
 main =
-  Html.program
-    { init = init ! []
+  App.programWithFlags
+    { init = init 
     , view = view
     , update = \msg model -> update msg model ! []
     , subscriptions = \_ -> Sub.none
@@ -60,14 +61,17 @@ newTask desc id =
     }
 
 
-emptyModel : Model
-emptyModel =
-    { tasks = []
-    , visibility = "All"
-    , field = ""
-    , uid = 0
-    }
-
+init : Maybe Model -> (Model, Cmd Msg)
+init savedModel =
+  case savedModel of 
+    Nothing -> 
+      { tasks = []
+      , visibility = "All"
+      , field = ""
+      , uid = 0
+      } ! []
+    Just model -> 
+      model ! []
 
 
 -- UPDATE
@@ -160,24 +164,22 @@ view model =
     ]
     [ section
         [ id "todoapp" ]
-        [ lazy2 taskEntry model.field
-        , lazy3 taskList model.visibility model.tasks
-        , lazy3 controls model.visibility model.tasks
+        [ lazy taskEntry model.field
+        , lazy2 taskList model.visibility model.tasks
+        , lazy2 controls model.visibility model.tasks
         ]
     , infoFooter
     ]
 
 
-onEnter : msg -> Attribute msg
-onEnter value =
-  on "keydown"
-    (Json.customDecoder keyCode is13)
-    (\_ -> Signal.message value)
-
-
-is13 : Int -> Result String ()
-is13 code =
-  if code == 13 then Ok () else Err "not the right key code"
+onEnter : msg -> msg -> Attribute msg
+onEnter fail success =
+  let 
+    tagger code = 
+      if code == 13 then success
+      else fail
+  in 
+    on "keyup" (Json.map tagger keyCode)
 
 
 taskEntry : String -> Html Msg
@@ -191,8 +193,8 @@ taskEntry task =
         , autofocus True
         , value task
         , name "newTodo"
-        , on "input" targetValue (Signal.message << UpdateField)
-        , onEnter Add
+        , on "input" (Json.map UpdateField targetValue)
+        , onEnter NoOp Add
         ]
         []
     ]
@@ -261,9 +263,9 @@ todoItem todo =
         , value todo.description
         , name "title"
         , id ("todo-" ++ toString todo.id)
-        , on "input" targetValue (Signal.message << UpdateTask todo.id)
+        , on "input" (Json.map (UpdateTask todo.id) targetValue)
         , onBlur (EditingTask todo.id False)
-        , onEnter (EditingTask todo.id False)
+        , onEnter NoOp (EditingTask todo.id False)
         ]
         []
     ]
@@ -317,7 +319,7 @@ visibilitySwap uri visibility actualVisibility =
     ]
 
 
-infoFooter : Html
+infoFooter : Html msg
 infoFooter =
   footer [ id "info" ]
     [ p [] [ text "Double-click to edit a todo" ]
@@ -335,26 +337,27 @@ infoFooter =
 
 -- PORTS
 
+port setStorage : Model -> Cmd msg
 
-port focus : Signal String
-port focus =
-    let needsFocus act =
-            case act of
-              EditingTask id bool -> bool
-              _ -> False
+--port focus : Signal String
+--port focus =
+--    let needsFocus act =
+--            case act of
+--              EditingTask id bool -> bool
+--              _ -> False
 
-        toSelector act =
-            case act of
-              EditingTask id _ -> "#todo-" ++ toString id
-              _ -> ""
-    in
-        msgs.signal
-          |> Signal.filter needsFocus (EditingTask 0 True)
-          |> Signal.map toSelector
+--        toSelector act =
+--            case act of
+--              EditingTask id _ -> "#todo-" ++ toString id
+--              _ -> ""
+--    in
+--        msgs.signal
+--          |> Signal.filter needsFocus (EditingTask 0 True)
+--          |> Signal.map toSelector
 
 
 -- intermsgs with localStorage to save the model
-port getStorage : Maybe Model
+--port getStorage : Maybe Model
 
-port setStorage : Signal Model
-port setStorage = model
+--port setStorage : Signal Model
+--port setStorage = model
