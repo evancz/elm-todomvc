@@ -14,7 +14,7 @@
 <script type="text/javascript">
 var storedState = localStorage.getItem('elm-todo-state');
 var startingState = storedState ? JSON.parse(storedState) : null;
-var todomvc = Elm.fullscreen(Elm.Todo, { getStorage: startingState });
+var todomvc = Elm.Todo.fullscreen(startingState);
 todomvc.ports.focus.subscribe(function(selector) {
     setTimeout(function() {
         var nodes = document.querySelectorAll(selector);
