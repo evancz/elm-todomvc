@@ -36,12 +36,13 @@ port setStorage : Model -> Cmd msg
 port focus : String -> Cmd msg
 
 
-{-| We want to `setStorage` on every update. This function
-adds that Cmd to the Cmds returned by the update function.
+{-| We want to `setStorage` on every update. This function adds the setStorage
+command for every step of the update function.
 -}
 withSetStorage : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
 withSetStorage (model, cmds) =
   ( model, Cmd.batch [ setStorage model, cmds ] )
+
 
 
 -- MODEL
