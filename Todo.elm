@@ -24,11 +24,16 @@ import String
 main : Program (Maybe Model)
 main =
   App.programWithFlags
-    { init = init 
+    { init = init
     , view = view
-    , update = \msg model -> update msg model ! []
+    , update = update
     , subscriptions = \_ -> Sub.none
     }
+
+
+port setStorage : Model -> Cmd msg
+
+port focus : String -> Cmd msg
 
 
 
@@ -52,26 +57,28 @@ type alias Task =
     }
 
 
+emptyModel : Model
+emptyModel =
+  { tasks = []
+  , visibility = "All"
+  , field = ""
+  , uid = 0
+  }
+
+
 newTask : String -> Int -> Task
 newTask desc id =
-    { description = desc
-    , completed = False
-    , editing = False
-    , id = id
-    }
+  { description = desc
+  , completed = False
+  , editing = False
+  , id = id
+  }
 
 
-init : Maybe Model -> (Model, Cmd Msg)
+init : Maybe Model -> ( Model, Cmd Msg )
 init savedModel =
-  case savedModel of 
-    Nothing -> 
-      { tasks = []
-      , visibility = "All"
-      , field = ""
-      , uid = 0
-      } ! []
-    Just model -> 
-      model ! []
+  Maybe.withDefault emptyModel savedModel ! []
+
 
 
 -- UPDATE
@@ -95,10 +102,11 @@ type Msg
 
 
 -- How we update our Model on a given Msg?
-update : Msg -> Model -> Model
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
   case msg of
-    NoOp -> model
+    NoOp ->
+      model ! []
 
     Add ->
       { model
@@ -110,9 +118,11 @@ update msg model =
             else
               model.tasks ++ [newTask model.field model.uid]
       }
+        ! []
 
     UpdateField str ->
       { model | field = str }
+        ! []
 
     EditingTask id isEditing ->
       let
@@ -120,6 +130,7 @@ update msg model =
           if t.id == id then { t | editing = isEditing } else t
       in
         { model | tasks = List.map updateTask model.tasks }
+          ! [ focus ("#todo-" ++ toString id) ]
 
     UpdateTask id task ->
       let
@@ -127,12 +138,15 @@ update msg model =
           if t.id == id then { t | description = task } else t
       in
         { model | tasks = List.map updateTask model.tasks }
+          ! []
 
     Delete id ->
       { model | tasks = List.filter (\t -> t.id /= id) model.tasks }
+        ! []
 
     DeleteComplete ->
       { model | tasks = List.filter (not << .completed) model.tasks }
+        ! []
 
     Check id isCompleted ->
       let
@@ -140,6 +154,7 @@ update msg model =
           if t.id == id then { t | completed = isCompleted } else t
       in
         { model | tasks = List.map updateTask model.tasks }
+          ! []
 
     CheckAll isCompleted ->
       let
@@ -147,9 +162,11 @@ update msg model =
           { t | completed = isCompleted }
       in
         { model | tasks = List.map updateTask model.tasks }
+          ! []
 
     ChangeVisibility visibility ->
       { model | visibility = visibility }
+        ! []
 
 
 
@@ -174,11 +191,11 @@ view model =
 
 onEnter : msg -> msg -> Attribute msg
 onEnter fail success =
-  let 
-    tagger code = 
+  let
+    tagger code =
       if code == 13 then success
       else fail
-  in 
+  in
     on "keyup" (Json.map tagger keyCode)
 
 
@@ -332,32 +349,3 @@ infoFooter =
         , a [ href "http://todomvc.com" ] [ text "TodoMVC" ]
         ]
     ]
-
-
-
--- PORTS
-
-port setStorage : Model -> Cmd msg
-
---port focus : Signal String
---port focus =
---    let needsFocus act =
---            case act of
---              EditingTask id bool -> bool
---              _ -> False
-
---        toSelector act =
---            case act of
---              EditingTask id _ -> "#todo-" ++ toString id
---              _ -> ""
---    in
---        msgs.signal
---          |> Signal.filter needsFocus (EditingTask 0 True)
---          |> Signal.map toSelector
-
-
--- intermsgs with localStorage to save the model
---port getStorage : Maybe Model
-
---port setStorage : Signal Model
---port setStorage = model
