@@ -26,7 +26,7 @@ main =
   App.programWithFlags
     { init = init
     , view = view
-    , update = update
+    , update = (\msg model -> withSetStorage (update msg model))
     , subscriptions = \_ -> Sub.none
     }
 
@@ -35,6 +35,13 @@ port setStorage : Model -> Cmd msg
 
 port focus : String -> Cmd msg
 
+
+{-| We want to `setStorage` on every update. This function
+adds that Cmd to the Cmds returned by the update function.
+-}
+withSetStorage : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+withSetStorage (model, cmds) =
+  ( model, Cmd.batch [ setStorage model, cmds ] )
 
 
 -- MODEL
