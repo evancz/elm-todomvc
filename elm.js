@@ -7665,7 +7665,7 @@ var _evancz$elm_todomvc$Todo$infoFooter = A2(
 	_elm_lang$html$Html$footer,
 	_elm_lang$core$Native_List.fromArray(
 		[
-			_elm_lang$html$Html_Attributes$id('info')
+			_elm_lang$html$Html_Attributes$class('info')
 		]),
 	_elm_lang$core$Native_List.fromArray(
 		[
@@ -7720,7 +7720,7 @@ var _evancz$elm_todomvc$Todo$viewControlsCount = function (entriesLeft) {
 		_elm_lang$html$Html$span,
 		_elm_lang$core$Native_List.fromArray(
 			[
-				_elm_lang$html$Html_Attributes$id('todo-count')
+				_elm_lang$html$Html_Attributes$class('todo-count')
 			]),
 		_elm_lang$core$Native_List.fromArray(
 			[
@@ -7983,7 +7983,7 @@ var _evancz$elm_todomvc$Todo$viewControlsFilters = function (visibility) {
 		_elm_lang$html$Html$ul,
 		_elm_lang$core$Native_List.fromArray(
 			[
-				_elm_lang$html$Html_Attributes$id('filters')
+				_elm_lang$html$Html_Attributes$class('filters')
 			]),
 		_elm_lang$core$Native_List.fromArray(
 			[
@@ -8008,7 +8008,6 @@ var _evancz$elm_todomvc$Todo$viewControlsClear = function (entriesCompleted) {
 		_elm_lang$core$Native_List.fromArray(
 			[
 				_elm_lang$html$Html_Attributes$class('clear-completed'),
-				_elm_lang$html$Html_Attributes$id('clear-completed'),
 				_elm_lang$html$Html_Attributes$hidden(
 				_elm_lang$core$Native_Utils.eq(entriesCompleted, 0)),
 				_elm_lang$html$Html_Events$onClick(_evancz$elm_todomvc$Todo$DeleteComplete)
@@ -8039,7 +8038,7 @@ var _evancz$elm_todomvc$Todo$viewControls = F2(
 			_elm_lang$html$Html$footer,
 			_elm_lang$core$Native_List.fromArray(
 				[
-					_elm_lang$html$Html_Attributes$id('footer'),
+					_elm_lang$html$Html_Attributes$class('footer'),
 					_elm_lang$html$Html_Attributes$hidden(
 					_elm_lang$core$List$isEmpty(entries))
 				]),
@@ -8080,7 +8079,7 @@ var _evancz$elm_todomvc$Todo$viewInput = function (task) {
 		_elm_lang$html$Html$header,
 		_elm_lang$core$Native_List.fromArray(
 			[
-				_elm_lang$html$Html_Attributes$id('header')
+				_elm_lang$html$Html_Attributes$class('header')
 			]),
 		_elm_lang$core$Native_List.fromArray(
 			[
@@ -8096,7 +8095,7 @@ var _evancz$elm_todomvc$Todo$viewInput = function (task) {
 				_elm_lang$html$Html$input,
 				_elm_lang$core$Native_List.fromArray(
 					[
-						_elm_lang$html$Html_Attributes$id('new-todo'),
+						_elm_lang$html$Html_Attributes$class('new-todo'),
 						_elm_lang$html$Html_Attributes$placeholder('What needs to be done?'),
 						_elm_lang$html$Html_Attributes$autofocus(true),
 						_elm_lang$html$Html_Attributes$value(task),
@@ -8221,7 +8220,7 @@ var _evancz$elm_todomvc$Todo$viewEntries = F2(
 			_elm_lang$html$Html$section,
 			_elm_lang$core$Native_List.fromArray(
 				[
-					_elm_lang$html$Html_Attributes$id('main'),
+					_elm_lang$html$Html_Attributes$class('main'),
 					_elm_lang$html$Html_Attributes$style(
 					_elm_lang$core$Native_List.fromArray(
 						[
@@ -8234,7 +8233,7 @@ var _evancz$elm_todomvc$Todo$viewEntries = F2(
 					_elm_lang$html$Html$input,
 					_elm_lang$core$Native_List.fromArray(
 						[
-							_elm_lang$html$Html_Attributes$id('toggle-all'),
+							_elm_lang$html$Html_Attributes$class('toggle-all'),
 							_elm_lang$html$Html_Attributes$type$('checkbox'),
 							_elm_lang$html$Html_Attributes$name('toggle'),
 							_elm_lang$html$Html_Attributes$checked(allCompleted),
@@ -8258,7 +8257,7 @@ var _evancz$elm_todomvc$Todo$viewEntries = F2(
 					_elm_lang$html$Html_Keyed$ul,
 					_elm_lang$core$Native_List.fromArray(
 						[
-							_elm_lang$html$Html_Attributes$id('todo-list')
+							_elm_lang$html$Html_Attributes$class('todo-list')
 						]),
 					A2(
 						_elm_lang$core$List$map,
@@ -8284,7 +8283,7 @@ var _evancz$elm_todomvc$Todo$view = function (model) {
 				_elm_lang$html$Html$section,
 				_elm_lang$core$Native_List.fromArray(
 					[
-						_elm_lang$html$Html_Attributes$id('todoapp')
+						_elm_lang$html$Html_Attributes$class('todoapp')
 					]),
 				_elm_lang$core$Native_List.fromArray(
 					[
