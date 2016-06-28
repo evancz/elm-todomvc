@@ -15,6 +15,7 @@ import Html exposing (..)
 import Html.App as App
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
+import Html.Keyed as Keyed
 import Html.Lazy exposing (lazy, lazy2)
 import Json.Decode as Json
 import String
@@ -26,7 +27,7 @@ main =
   App.programWithFlags
     { init = init
     , view = view
-    , update = (\msg model -> withSetStorage (update msg model))
+    , update = updateWithStorage
     , subscriptions = \_ -> Sub.none
     }
 
@@ -39,9 +40,15 @@ port focus : String -> Cmd msg
 {-| We want to `setStorage` on every update. This function adds the setStorage
 command for every step of the update function.
 -}
-withSetStorage : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
-withSetStorage (model, cmds) =
-  ( model, Cmd.batch [ setStorage model, cmds ] )
+updateWithStorage : Msg -> Model -> (Model, Cmd Msg)
+updateWithStorage msg model =
+  let
+    (newModel, cmds) =
+      update msg model
+  in
+    ( newModel
+    , Cmd.batch [ setStorage newModel, cmds ]
+    )
 
 
 
@@ -50,14 +57,14 @@ withSetStorage (model, cmds) =
 
 -- The full application state of our todo app.
 type alias Model =
-    { tasks : List Task
+    { entries : List Entry
     , field : String
     , uid : Int
     , visibility : String
     }
 
 
-type alias Task =
+type alias Entry =
     { description : String
     , completed : Bool
     , editing : Bool
@@ -67,15 +74,15 @@ type alias Task =
 
 emptyModel : Model
 emptyModel =
-  { tasks = []
+  { entries = []
   , visibility = "All"
   , field = ""
   , uid = 0
   }
 
 
-newTask : String -> Int -> Task
-newTask desc id =
+newEntry : String -> Int -> Entry
+newEntry desc id =
   { description = desc
   , completed = False
   , editing = False
@@ -99,8 +106,8 @@ to them.
 type Msg
     = NoOp
     | UpdateField String
-    | EditingTask Int Bool
-    | UpdateTask Int String
+    | EditingEntry Int Bool
+    | UpdateEntry Int String
     | Add
     | Delete Int
     | DeleteComplete
@@ -120,11 +127,11 @@ update msg model =
       { model
         | uid = model.uid + 1
         , field = ""
-        , tasks =
+        , entries =
             if String.isEmpty model.field then
-              model.tasks
+              model.entries
             else
-              model.tasks ++ [newTask model.field model.uid]
+              model.entries ++ [newEntry model.field model.uid]
       }
         ! []
 
@@ -132,44 +139,44 @@ update msg model =
       { model | field = str }
         ! []
 
-    EditingTask id isEditing ->
+    EditingEntry id isEditing ->
       let
-        updateTask t =
+        updateEntry t =
           if t.id == id then { t | editing = isEditing } else t
       in
-        { model | tasks = List.map updateTask model.tasks }
+        { model | entries = List.map updateEntry model.entries }
           ! [ focus ("#todo-" ++ toString id) ]
 
-    UpdateTask id task ->
+    UpdateEntry id task ->
       let
-        updateTask t =
+        updateEntry t =
           if t.id == id then { t | description = task } else t
       in
-        { model | tasks = List.map updateTask model.tasks }
+        { model | entries = List.map updateEntry model.entries }
           ! []
 
     Delete id ->
-      { model | tasks = List.filter (\t -> t.id /= id) model.tasks }
+      { model | entries = List.filter (\t -> t.id /= id) model.entries }
         ! []
 
     DeleteComplete ->
-      { model | tasks = List.filter (not << .completed) model.tasks }
+      { model | entries = List.filter (not << .completed) model.entries }
         ! []
 
     Check id isCompleted ->
       let
-        updateTask t =
+        updateEntry t =
           if t.id == id then { t | completed = isCompleted } else t
       in
-        { model | tasks = List.map updateTask model.tasks }
+        { model | entries = List.map updateEntry model.entries }
           ! []
 
     CheckAll isCompleted ->
       let
-        updateTask t =
+        updateEntry t =
           { t | completed = isCompleted }
       in
-        { model | tasks = List.map updateTask model.tasks }
+        { model | entries = List.map updateEntry model.entries }
           ! []
 
     ChangeVisibility visibility ->
@@ -189,26 +196,16 @@ view model =
     ]
     [ section
         [ id "todoapp" ]
-        [ lazy taskEntry model.field
-        , lazy2 taskList model.visibility model.tasks
-        , lazy2 controls model.visibility model.tasks
+        [ lazy viewInput model.field
+        , lazy2 viewEntries model.visibility model.entries
+        , lazy2 viewControls model.visibility model.entries
         ]
     , infoFooter
     ]
 
 
-onEnter : msg -> msg -> Attribute msg
-onEnter fail success =
-  let
-    tagger code =
-      if code == 13 then success
-      else fail
-  in
-    on "keyup" (Json.map tagger keyCode)
-
-
-taskEntry : String -> Html Msg
-taskEntry task =
+viewInput : String -> Html Msg
+viewInput task =
   header
     [ id "header" ]
     [ h1 [] [ text "todos" ]
@@ -218,15 +215,28 @@ taskEntry task =
         , autofocus True
         , value task
         , name "newTodo"
-        , on "input" (Json.map UpdateField targetValue)
-        , onEnter NoOp Add
+        , onInput UpdateField
+        , onEnter Add
         ]
         []
     ]
 
 
-taskList : String -> List Task -> Html Msg
-taskList visibility tasks =
+onEnter : Msg -> Attribute Msg
+onEnter msg =
+  let
+    tagger code =
+      if code == 13 then msg else NoOp
+  in
+    on "keydown" (Json.map tagger keyCode)
+
+
+
+-- VIEW ALL ENTRIES
+
+
+viewEntries : String -> List Entry -> Html Msg
+viewEntries visibility entries =
   let
     isVisible todo =
       case visibility of
@@ -235,10 +245,10 @@ taskList visibility tasks =
         _ -> True
 
     allCompleted =
-      List.all .completed tasks
+      List.all .completed entries
 
     cssVisibility =
-      if List.isEmpty tasks then "hidden" else "visible"
+      if List.isEmpty entries then "hidden" else "visible"
   in
     section
       [ id "main"
@@ -255,14 +265,22 @@ taskList visibility tasks =
       , label
           [ for "toggle-all" ]
           [ text "Mark all as complete" ]
-      , ul
-          [ id "todo-list" ]
-          (List.map (todoItem) (List.filter isVisible tasks))
+      , Keyed.ul [ id "todo-list" ] <|
+          List.map viewKeyedEntry (List.filter isVisible entries)
       ]
 
 
-todoItem : Task -> Html Msg
-todoItem todo =
+
+-- VIEW INDIVIDUAL ENTRIES
+
+
+viewKeyedEntry : Entry -> (String, Html Msg)
+viewKeyedEntry todo =
+  ( toString todo.id, lazy viewEntry todo )
+
+
+viewEntry : Entry -> Html Msg
+viewEntry todo =
   li
     [ classList [ ("completed", todo.completed), ("editing", todo.editing) ] ]
     [ div
@@ -275,7 +293,7 @@ todoItem todo =
             ]
             []
         , label
-            [ onDoubleClick (EditingTask todo.id True) ]
+            [ onDoubleClick (EditingEntry todo.id True) ]
             [ text todo.description ]
         , button
             [ class "destroy"
@@ -288,51 +306,60 @@ todoItem todo =
         , value todo.description
         , name "title"
         , id ("todo-" ++ toString todo.id)
-        , on "input" (Json.map (UpdateTask todo.id) targetValue)
-        , onBlur (EditingTask todo.id False)
-        , onEnter NoOp (EditingTask todo.id False)
+        , onInput (UpdateEntry todo.id)
+        , onBlur (EditingEntry todo.id False)
+        , onEnter (EditingEntry todo.id False)
         ]
         []
     ]
 
 
-controls : String -> List Task -> Html Msg
-controls visibility tasks =
+
+-- VIEW CONTROLS AND FOOTER
+
+
+viewControls : String -> List Entry -> Html Msg
+viewControls visibility entries =
   let
-    tasksCompleted =
-      List.length (List.filter .completed tasks)
+    entriesCompleted =
+      List.length (List.filter .completed entries)
 
-    tasksLeft =
-      List.length tasks - tasksCompleted
-
-    item_ =
-      if tasksLeft == 1 then " item" else " items"
+    entriesLeft =
+      List.length entries - entriesCompleted
   in
     footer
       [ id "footer"
-      , hidden (List.isEmpty tasks)
+      , hidden (List.isEmpty entries)
       ]
-      [ span
-          [ id "todo-count" ]
-          [ strong [] [ text (toString tasksLeft) ]
-          , text (item_ ++ " left")
-          ]
-      , ul
-          [ id "filters" ]
-          [ visibilitySwap "#/" "All" visibility
-          , text " "
-          , visibilitySwap "#/active" "Active" visibility
-          , text " "
-          , visibilitySwap "#/completed" "Completed" visibility
-          ]
-      , button
-          [ class "clear-completed"
-          , id "clear-completed"
-          , hidden (tasksCompleted == 0)
-          , onClick DeleteComplete
-          ]
-          [ text ("Clear completed (" ++ toString tasksCompleted ++ ")") ]
+      [ lazy viewControlsCount entriesLeft
+      , lazy viewControlsFilters visibility
+      , lazy viewControlsClear entriesCompleted
       ]
+
+
+viewControlsCount : Int -> Html Msg
+viewControlsCount entriesLeft =
+  let
+    item_ =
+      if entriesLeft == 1 then " item" else " items"
+  in
+    span
+      [ id "todo-count" ]
+      [ strong [] [ text (toString entriesLeft) ]
+      , text (item_ ++ " left")
+      ]
+
+
+viewControlsFilters : String -> Html Msg
+viewControlsFilters visibility =
+  ul
+    [ id "filters" ]
+    [ visibilitySwap "#/" "All" visibility
+    , text " "
+    , visibilitySwap "#/active" "Active" visibility
+    , text " "
+    , visibilitySwap "#/completed" "Completed" visibility
+    ]
 
 
 visibilitySwap : String -> String -> String -> Html Msg
@@ -341,6 +368,18 @@ visibilitySwap uri visibility actualVisibility =
     [ onClick (ChangeVisibility visibility) ]
     [ a [ href uri, classList [("selected", visibility == actualVisibility)] ]
         [ text visibility ]
+    ]
+
+
+viewControlsClear : Int -> Html Msg
+viewControlsClear entriesCompleted =
+  button
+    [ class "clear-completed"
+    , id "clear-completed"
+    , hidden (entriesCompleted == 0)
+    , onClick DeleteComplete
+    ]
+    [ text ("Clear completed (" ++ toString entriesCompleted ++ ")")
     ]
 
 
