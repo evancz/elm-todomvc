@@ -12,7 +12,7 @@
 </body>
 
 <script type="text/javascript">
-var storedState = localStorage.getItem('elm-todo-state');
+var storedState = localStorage.getItem('elm-todo-save');
 var startingState = storedState ? JSON.parse(storedState) : null;
 var todomvc = Elm.Todo.fullscreen(startingState);
 todomvc.ports.focus.subscribe(function(selector) {
@@ -24,7 +24,7 @@ todomvc.ports.focus.subscribe(function(selector) {
     }, 50);
 });
 todomvc.ports.setStorage.subscribe(function(state) {
-    localStorage.setItem('elm-todo-state', JSON.stringify(state));
+    localStorage.setItem('elm-todo-save', JSON.stringify(state));
 });
 </script>
 
