@@ -195,7 +195,7 @@ view model =
     , style [ ("visibility", "hidden") ]
     ]
     [ section
-        [ id "todoapp" ]
+        [ class "todoapp" ]
         [ lazy viewInput model.field
         , lazy2 viewEntries model.visibility model.entries
         , lazy2 viewControls model.visibility model.entries
@@ -207,10 +207,10 @@ view model =
 viewInput : String -> Html Msg
 viewInput task =
   header
-    [ id "header" ]
+    [ class "header" ]
     [ h1 [] [ text "todos" ]
     , input
-        [ id "new-todo"
+        [ class "new-todo"
         , placeholder "What needs to be done?"
         , autofocus True
         , value task
@@ -251,11 +251,11 @@ viewEntries visibility entries =
       if List.isEmpty entries then "hidden" else "visible"
   in
     section
-      [ id "main"
+      [ class "main"
       , style [ ("visibility", cssVisibility) ]
       ]
       [ input
-          [ id "toggle-all"
+          [ class "toggle-all"
           , type' "checkbox"
           , name "toggle"
           , checked allCompleted
@@ -265,7 +265,7 @@ viewEntries visibility entries =
       , label
           [ for "toggle-all" ]
           [ text "Mark all as complete" ]
-      , Keyed.ul [ id "todo-list" ] <|
+      , Keyed.ul [ class "todo-list" ] <|
           List.map viewKeyedEntry (List.filter isVisible entries)
       ]
 
@@ -328,7 +328,7 @@ viewControls visibility entries =
       List.length entries - entriesCompleted
   in
     footer
-      [ id "footer"
+      [ class "footer"
       , hidden (List.isEmpty entries)
       ]
       [ lazy viewControlsCount entriesLeft
@@ -344,7 +344,7 @@ viewControlsCount entriesLeft =
       if entriesLeft == 1 then " item" else " items"
   in
     span
-      [ id "todo-count" ]
+      [ class "todo-count" ]
       [ strong [] [ text (toString entriesLeft) ]
       , text (item_ ++ " left")
       ]
@@ -353,7 +353,7 @@ viewControlsCount entriesLeft =
 viewControlsFilters : String -> Html Msg
 viewControlsFilters visibility =
   ul
-    [ id "filters" ]
+    [ class "filters" ]
     [ visibilitySwap "#/" "All" visibility
     , text " "
     , visibilitySwap "#/active" "Active" visibility
@@ -375,7 +375,6 @@ viewControlsClear : Int -> Html Msg
 viewControlsClear entriesCompleted =
   button
     [ class "clear-completed"
-    , id "clear-completed"
     , hidden (entriesCompleted == 0)
     , onClick DeleteComplete
     ]
@@ -385,7 +384,7 @@ viewControlsClear entriesCompleted =
 
 infoFooter : Html msg
 infoFooter =
-  footer [ id "info" ]
+  footer [ class "info" ]
     [ p [] [ text "Double-click to edit a todo" ]
     , p []
         [ text "Written by "
