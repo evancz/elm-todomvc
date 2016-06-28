@@ -3205,10 +3205,11 @@ function toEffect(isCmd, home, taggers, value)
 {
 	function applyTaggers(x)
 	{
-		while (taggers)
+		var temp = taggers;
+		while (temp)
 		{
-			x = taggers.tagger(x);
-			taggers = taggers.rest;
+			x = temp.tagger(x);
+			temp = temp.rest;
 		}
 		return x;
 	}
@@ -5082,7 +5083,10 @@ function badOneOf(problems)
 	return { tag: 'oneOf', problems: problems };
 }
 
-var bad = { tag: 'fail' };
+function bad(msg)
+{
+	return { tag: 'fail', msg: msg };
+}
 
 function badToString(problem)
 {
@@ -5118,7 +5122,8 @@ function badToString(problem)
 
 			case 'fail':
 				return 'I ran into a `fail` decoder'
-					+ (context === '_' ? '' : ' at ' + context);
+					+ (context === '_' ? '' : ' at ' + context)
+					+ ': ' + problem.msg;
 		}
 	}
 }
@@ -5165,14 +5170,19 @@ function runHelp(decoder, value)
 				: badPrimitive('a Bool', value);
 
 		case 'int':
-			var isNotInt =
-				typeof value !== 'number'
-				|| !(-2147483647 < value && value < 2147483647 && (value | 0) === value)
-				|| !(isFinite(value) && !(value % 1));
+			if (typeof value !== 'number') {
+				return badPrimitive('an Int', value);
+			}
 
-			return isNotInt
-				? badPrimitive('an Int', value)
-				: ok(value);
+			if (-2147483647 < value && value < 2147483647 && (value | 0) === value) {
+				return ok(value);
+			}
+
+			if (isFinite(value) && !(value % 1)) {
+				return ok(value);
+			}
+
+			return badPrimitive('an Int', value);
 
 		case 'float':
 			return (typeof value === 'number')
@@ -5252,7 +5262,7 @@ function runHelp(decoder, value)
 		case 'key-value':
 			if (typeof value !== 'object' || value === null || value instanceof Array)
 			{
-				return err('an object', value);
+				return badPrimitive('an object', value);
 			}
 
 			var keyValuePairs = _elm_lang$core$Native_List.Nil;
@@ -5341,7 +5351,7 @@ function runHelp(decoder, value)
 			return badOneOf(errors);
 
 		case 'fail':
-			return bad;
+			return bad(decoder.msg);
 
 		case 'succeed':
 			return ok(decoder.msg);
@@ -5625,6 +5635,34 @@ function nodeHelp(tag, factList, kidList)
 }
 
 
+function keyedNode(tag, factList, kidList)
+{
+	var organized = organizeFacts(factList);
+	var namespace = organized.namespace;
+	var facts = organized.facts;
+
+	var children = [];
+	var descendantsCount = 0;
+	while (kidList.ctor !== '[]')
+	{
+		var kid = kidList._0;
+		descendantsCount += (kid._1.descendantsCount || 0);
+		children.push(kid);
+		kidList = kidList._1;
+	}
+	descendantsCount += children.length;
+
+	return {
+		type: 'keyed-node',
+		tag: tag,
+		facts: facts,
+		children: children,
+		namespace: namespace,
+		descendantsCount: descendantsCount
+	};
+}
+
+
 function custom(factList, model, impl)
 {
 	var facts = organizeFacts(factList).facts;
@@ -5656,7 +5694,7 @@ function thunk(func, args, thunk)
 		func: func,
 		args: args,
 		thunk: thunk,
-		node: null
+		node: undefined
 	};
 }
 
@@ -5808,7 +5846,7 @@ function equalEvents(a, b)
 
 function renderer(parent, tagger, initialVirtualNode)
 {
-	var eventNode = { tagger: tagger, parent: null };
+	var eventNode = { tagger: tagger, parent: undefined };
 
 	var domNode = render(initialVirtualNode, eventNode);
 	parent.appendChild(domNode);
@@ -5879,11 +5917,24 @@ function render(vNode, eventNode)
 			return render(vNode.node, eventNode);
 
 		case 'tagger':
+			var subNode = vNode.node;
+			var tagger = vNode.tagger;
+
+			while (subNode.type === 'tagger')
+			{
+				typeof tagger !== 'object'
+					? tagger = [tagger, subNode.tagger]
+					: tagger.push(subNode.tagger);
+
+				subNode = subNode.node;
+			}
+
 			var subEventRoot = {
-				tagger: vNode.tagger,
+				tagger: tagger,
 				parent: eventNode
 			};
-			var domNode = render(vNode.node, subEventRoot);
+
+			var domNode = render(subNode, subEventRoot);
 			domNode.elm_event_node_ref = subEventRoot;
 			return domNode;
 
@@ -5902,6 +5953,22 @@ function render(vNode, eventNode)
 			for (var i = 0; i < children.length; i++)
 			{
 				domNode.appendChild(render(children[i], eventNode));
+			}
+
+			return domNode;
+
+		case 'keyed-node':
+			var domNode = vNode.namespace
+				? document.createElementNS(vNode.namespace, vNode.tag)
+				: document.createElement(vNode.tag);
+
+			applyFacts(domNode, eventNode, vNode.facts);
+
+			var children = vNode.children;
+
+			for (var i = 0; i < children.length; i++)
+			{
+				domNode.appendChild(render(children[i]._1, eventNode));
 			}
 
 			return domNode;
@@ -5978,6 +6045,7 @@ function applyEvents(domNode, eventNode, events)
 		if (typeof value === 'undefined')
 		{
 			domNode.removeEventListener(key, handler);
+			allHandlers[key] = undefined;
 		}
 		else if (typeof handler === 'undefined')
 		{
@@ -6095,8 +6163,8 @@ function makePatch(type, index, data)
 		index: index,
 		type: type,
 		data: data,
-		domNode: null,
-		eventNode: null
+		domNode: undefined,
+		eventNode: undefined
 	};
 }
 
@@ -6221,6 +6289,25 @@ function diffHelp(a, b, patches, index)
 			diffChildren(a, b, patches, index);
 			return;
 
+		case 'keyed-node':
+			// Bail if obvious indicators have changed. Implies more serious
+			// structural changes such that it's not worth it to diff.
+			if (a.tag !== b.tag || a.namespace !== b.namespace)
+			{
+				patches.push(makePatch('p-redraw', index, b));
+				return;
+			}
+
+			var factsDiff = diffFacts(a.facts, b.facts);
+
+			if (typeof factsDiff !== 'undefined')
+			{
+				patches.push(makePatch('p-facts', index, factsDiff));
+			}
+
+			diffKeyedChildren(a, b, patches, index);
+			return;
+
 		case 'custom':
 			if (a.impl !== b.impl)
 			{
@@ -6293,10 +6380,7 @@ function diffFacts(a, b, category)
 				(category === STYLE_KEY)
 					? ''
 					:
-				(category === EVENT_KEY)
-					? null
-					:
-				(category === ATTR_KEY)
+				(category === EVENT_KEY || category === ATTR_KEY)
 					? undefined
 					:
 				{ namespace: a[aKey].namespace, value: undefined };
@@ -6344,11 +6428,11 @@ function diffChildren(aParent, bParent, patches, rootIndex)
 
 	if (aLen > bLen)
 	{
-		patches.push(makePatch('p-remove', rootIndex, aLen - bLen));
+		patches.push(makePatch('p-remove-last', rootIndex, aLen - bLen));
 	}
 	else if (aLen < bLen)
 	{
-		patches.push(makePatch('p-insert', rootIndex, bChildren.slice(aLen)));
+		patches.push(makePatch('p-append', rootIndex, bChildren.slice(aLen)));
 	}
 
 	// PAIRWISE DIFF EVERYTHING ELSE
@@ -6362,6 +6446,260 @@ function diffChildren(aParent, bParent, patches, rootIndex)
 		diffHelp(aChild, bChildren[i], patches, index);
 		index += aChild.descendantsCount || 0;
 	}
+}
+
+
+
+////////////  KEYED DIFF  ////////////
+
+
+function diffKeyedChildren(aParent, bParent, patches, rootIndex)
+{
+	var localPatches = [];
+
+	var changes = {}; // Dict String Entry
+	var inserts = []; // Array { index : Int, entry : Entry }
+	// type Entry = { tag : String, vnode : VNode, index : Int, data : _ }
+
+	var aChildren = aParent.children;
+	var bChildren = bParent.children;
+	var aLen = aChildren.length;
+	var bLen = bChildren.length;
+	var aIndex = 0;
+	var bIndex = 0;
+
+	var index = rootIndex;
+
+	while (aIndex < aLen && bIndex < bLen)
+	{
+		var a = aChildren[aIndex];
+		var b = bChildren[bIndex];
+
+		var aKey = a._0;
+		var bKey = b._0;
+		var aNode = a._1;
+		var bNode = b._1;
+
+		// check if keys match
+
+		if (aKey === bKey)
+		{
+			index++;
+			diffHelp(aNode, bNode, localPatches, index);
+			index += aNode.descendantsCount || 0;
+
+			aIndex++;
+			bIndex++;
+			continue;
+		}
+
+		// look ahead 1 to detect insertions and removals.
+
+		var aLookAhead = aIndex + 1 < aLen;
+		var bLookAhead = bIndex + 1 < bLen;
+
+		if (aLookAhead)
+		{
+			var aNext = aChildren[aIndex + 1];
+			var aNextKey = aNext._0;
+			var aNextNode = aNext._1;
+			var oldMatch = bKey === aNextKey;
+		}
+
+		if (bLookAhead)
+		{
+			var bNext = bChildren[bIndex + 1];
+			var bNextKey = bNext._0;
+			var bNextNode = bNext._1;
+			var newMatch = aKey === bNextKey;
+		}
+
+
+		// swap a and b
+		if (aLookAhead && bLookAhead && newMatch && oldMatch)
+		{
+			index++;
+			diffHelp(aNode, bNextNode, localPatches, index);
+			insertNode(changes, localPatches, aKey, bNode, bIndex, inserts);
+			index += aNode.descendantsCount || 0;
+
+			index++;
+			removeNode(changes, localPatches, aKey, aNextNode, index);
+			index += aNextNode.descendantsCount || 0;
+
+			aIndex += 2;
+			bIndex += 2;
+			continue;
+		}
+
+		// insert b
+		if (bLookAhead && newMatch)
+		{
+			index++;
+			insertNode(changes, localPatches, bKey, bNode, bIndex, inserts);
+			diffHelp(aNode, bNextNode, localPatches, index);
+			index += aNode.descendantsCount || 0;
+
+			aIndex += 1;
+			bIndex += 2;
+			continue;
+		}
+
+		// remove a
+		if (aLookAhead && oldMatch)
+		{
+			index++;
+			removeNode(changes, localPatches, aKey, aNode, index);
+			index += aNode.descendantsCount || 0;
+
+			index++;
+			diffHelp(aNextNode, bNode, localPatches, index);
+			index += aNextNode.descendantsCount || 0;
+
+			aIndex += 2;
+			bIndex += 1;
+			continue;
+		}
+
+		// remove a, insert b
+		if (aLookAhead && bLookAhead && aNextKey === bNextKey)
+		{
+			index++;
+			removeNode(changes, localPatches, aKey, aNode, index);
+			insertNode(changes, localPatches, bKey, bNode, bIndex, inserts);
+			index += aNode.descendantsCount || 0;
+
+			index++;
+			diffHelp(aNextNode, bNextNode, localPatches, index);
+			index += aNextNode.descendantsCount || 0;
+
+			aIndex += 2;
+			bIndex += 2;
+			continue;
+		}
+
+		break;
+	}
+
+	// eat up any remaining nodes with removeNode and insertNode
+
+	while (aIndex < aLen)
+	{
+		index++;
+		var a = aChildren[aIndex];
+		var aNode = a._1;
+		removeNode(changes, localPatches, a._0, aNode, index);
+		index += aNode.descendantsCount || 0;
+		aIndex++;
+	}
+
+	var endInserts;
+	while (bIndex < bLen)
+	{
+		endInserts = endInserts || [];
+		var b = bChildren[bIndex];
+		insertNode(changes, localPatches, b._0, b._1, undefined, endInserts);
+		bIndex++;
+	}
+
+	if (localPatches.length > 0 || inserts.length > 0 || typeof endInserts !== 'undefined')
+	{
+		patches.push(makePatch('p-reorder', rootIndex, {
+			patches: localPatches,
+			inserts: inserts,
+			endInserts: endInserts
+		}));
+	}
+}
+
+
+
+////////////  CHANGES FROM KEYED DIFF  ////////////
+
+
+var POSTFIX = '_elmW6BL';
+
+
+function insertNode(changes, localPatches, key, vnode, bIndex, inserts)
+{
+	var entry = changes[key];
+
+	// never seen this key before
+	if (typeof entry === 'undefined')
+	{
+		entry = {
+			tag: 'insert',
+			vnode: vnode,
+			index: bIndex,
+			data: undefined
+		};
+
+		inserts.push({ index: bIndex, entry: entry });
+		changes[key] = entry;
+
+		return;
+	}
+
+	// this key was removed earlier, a match!
+	if (entry.tag === 'remove')
+	{
+		inserts.push({ index: bIndex, entry: entry });
+
+		entry.tag = 'move';
+		var subPatches = [];
+		diffHelp(entry.vnode, vnode, subPatches, entry.index);
+		entry.index = bIndex;
+		entry.data.data = {
+			patches: subPatches,
+			entry: entry
+		};
+
+		return;
+	}
+
+	// this key has already been inserted or moved, a duplicate!
+	insertNode(changes, localPatches, key + POSTFIX, vnode, bIndex, inserts);
+}
+
+
+function removeNode(changes, localPatches, key, vnode, index)
+{
+	var entry = changes[key];
+
+	// never seen this key before
+	if (typeof entry === 'undefined')
+	{
+		var patch = makePatch('p-remove', index, undefined);
+		localPatches.push(patch);
+
+		changes[key] = {
+			tag: 'remove',
+			vnode: vnode,
+			index: index,
+			data: patch
+		};
+
+		return;
+	}
+
+	// this key was inserted earlier, a match!
+	if (entry.tag === 'insert')
+	{
+		entry.tag = 'move';
+		var subPatches = [];
+		diffHelp(vnode, entry.vnode, subPatches, index);
+
+		var patch = makePatch('p-remove', index, {
+			patches: subPatches,
+			entry: entry
+		});
+		localPatches.push(patch);
+
+		return;
+	}
+
+	// this key has already been removed or moved, a duplicate!
+	removeNode(changes, localPatches, key + POSTFIX, vnode, index);
 }
 
 
@@ -6394,6 +6732,33 @@ function addDomNodesHelp(domNode, vNode, patches, i, low, high, eventNode)
 		{
 			addDomNodes(domNode, vNode.node, patch.data, eventNode);
 		}
+		else if (patchType === 'p-reorder')
+		{
+			patch.domNode = domNode;
+			patch.eventNode = eventNode;
+
+			var subPatches = patch.data.patches;
+			if (subPatches.length > 0)
+			{
+				addDomNodesHelp(domNode, vNode, subPatches, 0, low, high, eventNode);
+			}
+		}
+		else if (patchType === 'p-remove')
+		{
+			patch.domNode = domNode;
+			patch.eventNode = eventNode;
+
+			var data = patch.data;
+			if (typeof data !== 'undefined')
+			{
+				data.entry.data = domNode;
+				var subPatches = data.patches;
+				if (subPatches.length > 0)
+				{
+					addDomNodesHelp(domNode, vNode, subPatches, 0, low, high, eventNode);
+				}
+			}
+		}
 		else
 		{
 			patch.domNode = domNode;
@@ -6411,7 +6776,14 @@ function addDomNodesHelp(domNode, vNode, patches, i, low, high, eventNode)
 	switch (vNode.type)
 	{
 		case 'tagger':
-			return addDomNodesHelp(domNode, vNode.node, patches, i, low + 1, high, domNode.elm_event_node_ref);
+			var subNode = vNode.node;
+
+			while (subNode.type === "tagger")
+			{
+				subNode = subNode.node;
+			}
+
+			return addDomNodesHelp(domNode, subNode, patches, i, low + 1, high, domNode.elm_event_node_ref);
 
 		case 'node':
 			var vChildren = vNode.children;
@@ -6420,6 +6792,26 @@ function addDomNodesHelp(domNode, vNode, patches, i, low, high, eventNode)
 			{
 				low++;
 				var vChild = vChildren[j];
+				var nextLow = low + (vChild.descendantsCount || 0);
+				if (low <= index && index <= nextLow)
+				{
+					i = addDomNodesHelp(childNodes[j], vChild, patches, i, low, nextLow, eventNode);
+					if (!(patch = patches[i]) || (index = patch.index) > high)
+					{
+						return i;
+					}
+				}
+				low = nextLow;
+			}
+			return i;
+
+		case 'keyed-node':
+			var vChildren = vNode.children;
+			var childNodes = domNode.childNodes;
+			for (var j = 0; j < vChildren.length; j++)
+			{
+				low++;
+				var vChild = vChildren[j]._1;
 				var nextLow = low + (vChild.descendantsCount || 0);
 				if (low <= index && index <= nextLow)
 				{
@@ -6492,7 +6884,7 @@ function applyPatch(domNode, patch)
 			domNode.elm_event_node_ref.tagger = patch.data;
 			return domNode;
 
-		case 'p-remove':
+		case 'p-remove-last':
 			var i = patch.data;
 			while (i--)
 			{
@@ -6500,12 +6892,80 @@ function applyPatch(domNode, patch)
 			}
 			return domNode;
 
-		case 'p-insert':
+		case 'p-append':
 			var newNodes = patch.data;
 			for (var i = 0; i < newNodes.length; i++)
 			{
 				domNode.appendChild(render(newNodes[i], patch.eventNode));
 			}
+			return domNode;
+
+		case 'p-remove':
+			var data = patch.data;
+			if (typeof data === 'undefined')
+			{
+				domNode.parentNode.removeChild(domNode);
+				return domNode;
+			}
+			var entry = data.entry;
+			if (typeof entry.index !== 'undefined')
+			{
+				domNode.parentNode.removeChild(domNode);
+			}
+			entry.data = applyPatchesHelp(domNode, data.patches);
+			return domNode;
+
+		case 'p-reorder':
+			var data = patch.data;
+
+			// end inserts
+			var endInserts = data.endInserts;
+			var end;
+			if (typeof endInserts !== 'undefined')
+			{
+				if (endInserts.length === 1)
+				{
+					var insert = endInserts[0];
+					var entry = insert.entry;
+					var end = entry.tag === 'move'
+						? entry.data
+						: render(entry.vnode, patch.eventNode);
+				}
+				else
+				{
+					end = document.createDocumentFragment();
+					for (var i = 0; i < endInserts.length; i++)
+					{
+						var insert = endInserts[i];
+						var entry = insert.entry;
+						var node = entry.tag === 'move'
+							? entry.data
+							: render(entry.vnode, patch.eventNode);
+						end.appendChild(node);
+					}
+				}
+			}
+
+			// removals
+			domNode = applyPatchesHelp(domNode, data.patches);
+
+			// inserts
+			var inserts = data.inserts;
+			for (var i = 0; i < inserts.length; i++)
+			{
+				var insert = inserts[i];
+				var entry = insert.entry;
+				var node = entry.tag === 'move'
+					? entry.data
+					: render(entry.vnode, patch.eventNode);
+				domNode.insertBefore(node, domNode.childNodes[insert.index]);
+			}
+
+			if (typeof end !== 'undefined')
+			{
+				domNode.appendChild(end);
+			}
+
 			return domNode;
 
 		case 'p-custom':
@@ -6523,10 +6983,9 @@ function redraw(domNode, vNode, eventNode)
 	var parentNode = domNode.parentNode;
 	var newNode = render(vNode, eventNode);
 
-	var ref = domNode.elm_event_node_ref
-	if (typeof ref !== 'undefined')
+	if (typeof newNode.elm_event_node_ref === 'undefined')
 	{
-		newNode.elm_event_node_ref = ref;
+		newNode.elm_event_node_ref = domNode.elm_event_node_ref;
 	}
 
 	if (parentNode && newNode !== domNode)
@@ -6570,12 +7029,14 @@ return {
 	lazy: F2(lazy),
 	lazy2: F3(lazy2),
 	lazy3: F4(lazy3),
+	keyedNode: F3(keyedNode),
 
 	programWithFlags: programWithFlags
 };
 
 }();
 var _elm_lang$virtual_dom$VirtualDom$programWithFlags = _elm_lang$virtual_dom$Native_VirtualDom.programWithFlags;
+var _elm_lang$virtual_dom$VirtualDom$keyedNode = _elm_lang$virtual_dom$Native_VirtualDom.keyedNode;
 var _elm_lang$virtual_dom$VirtualDom$lazy3 = _elm_lang$virtual_dom$Native_VirtualDom.lazy3;
 var _elm_lang$virtual_dom$VirtualDom$lazy2 = _elm_lang$virtual_dom$Native_VirtualDom.lazy2;
 var _elm_lang$virtual_dom$VirtualDom$lazy = _elm_lang$virtual_dom$Native_VirtualDom.lazy;
@@ -6743,6 +7204,36 @@ var _elm_lang$html$Html_Attributes$attribute = _elm_lang$virtual_dom$VirtualDom$
 var _elm_lang$html$Html_Attributes$contextmenu = function (value) {
 	return A2(_elm_lang$html$Html_Attributes$attribute, 'contextmenu', value);
 };
+var _elm_lang$html$Html_Attributes$draggable = function (value) {
+	return A2(_elm_lang$html$Html_Attributes$attribute, 'draggable', value);
+};
+var _elm_lang$html$Html_Attributes$list = function (value) {
+	return A2(_elm_lang$html$Html_Attributes$attribute, 'list', value);
+};
+var _elm_lang$html$Html_Attributes$maxlength = function (n) {
+	return A2(
+		_elm_lang$html$Html_Attributes$attribute,
+		'maxlength',
+		_elm_lang$core$Basics$toString(n));
+};
+var _elm_lang$html$Html_Attributes$datetime = function (value) {
+	return A2(_elm_lang$html$Html_Attributes$attribute, 'datetime', value);
+};
+var _elm_lang$html$Html_Attributes$pubdate = function (value) {
+	return A2(_elm_lang$html$Html_Attributes$attribute, 'pubdate', value);
+};
+var _elm_lang$html$Html_Attributes$colspan = function (n) {
+	return A2(
+		_elm_lang$html$Html_Attributes$attribute,
+		'colspan',
+		_elm_lang$core$Basics$toString(n));
+};
+var _elm_lang$html$Html_Attributes$rowspan = function (n) {
+	return A2(
+		_elm_lang$html$Html_Attributes$attribute,
+		'rowspan',
+		_elm_lang$core$Basics$toString(n));
+};
 var _elm_lang$html$Html_Attributes$property = _elm_lang$virtual_dom$VirtualDom$property;
 var _elm_lang$html$Html_Attributes$stringProperty = F2(
 	function (name, string) {
@@ -6768,9 +7259,6 @@ var _elm_lang$html$Html_Attributes$accesskey = function ($char) {
 };
 var _elm_lang$html$Html_Attributes$dir = function (value) {
 	return A2(_elm_lang$html$Html_Attributes$stringProperty, 'dir', value);
-};
-var _elm_lang$html$Html_Attributes$draggable = function (value) {
-	return A2(_elm_lang$html$Html_Attributes$stringProperty, 'draggable', value);
 };
 var _elm_lang$html$Html_Attributes$dropzone = function (value) {
 	return A2(_elm_lang$html$Html_Attributes$stringProperty, 'dropzone', value);
@@ -6871,19 +7359,10 @@ var _elm_lang$html$Html_Attributes$enctype = function (value) {
 var _elm_lang$html$Html_Attributes$formaction = function (value) {
 	return A2(_elm_lang$html$Html_Attributes$stringProperty, 'formAction', value);
 };
-var _elm_lang$html$Html_Attributes$list = function (value) {
-	return A2(_elm_lang$html$Html_Attributes$stringProperty, 'list', value);
-};
 var _elm_lang$html$Html_Attributes$minlength = function (n) {
 	return A2(
 		_elm_lang$html$Html_Attributes$stringProperty,
 		'minLength',
-		_elm_lang$core$Basics$toString(n));
-};
-var _elm_lang$html$Html_Attributes$maxlength = function (n) {
-	return A2(
-		_elm_lang$html$Html_Attributes$stringProperty,
-		'maxLength',
 		_elm_lang$core$Basics$toString(n));
 };
 var _elm_lang$html$Html_Attributes$method = function (value) {
@@ -6973,32 +7452,14 @@ var _elm_lang$html$Html_Attributes$ping = function (value) {
 var _elm_lang$html$Html_Attributes$rel = function (value) {
 	return A2(_elm_lang$html$Html_Attributes$stringProperty, 'rel', value);
 };
-var _elm_lang$html$Html_Attributes$datetime = function (value) {
-	return A2(_elm_lang$html$Html_Attributes$stringProperty, 'datetime', value);
-};
-var _elm_lang$html$Html_Attributes$pubdate = function (value) {
-	return A2(_elm_lang$html$Html_Attributes$stringProperty, 'pubdate', value);
-};
 var _elm_lang$html$Html_Attributes$start = function (n) {
 	return A2(
 		_elm_lang$html$Html_Attributes$stringProperty,
 		'start',
 		_elm_lang$core$Basics$toString(n));
 };
-var _elm_lang$html$Html_Attributes$colspan = function (n) {
-	return A2(
-		_elm_lang$html$Html_Attributes$stringProperty,
-		'colSpan',
-		_elm_lang$core$Basics$toString(n));
-};
 var _elm_lang$html$Html_Attributes$headers = function (value) {
 	return A2(_elm_lang$html$Html_Attributes$stringProperty, 'headers', value);
-};
-var _elm_lang$html$Html_Attributes$rowspan = function (n) {
-	return A2(
-		_elm_lang$html$Html_Attributes$stringProperty,
-		'rowSpan',
-		_elm_lang$core$Basics$toString(n));
 };
 var _elm_lang$html$Html_Attributes$scope = function (value) {
 	return A2(_elm_lang$html$Html_Attributes$stringProperty, 'scope', value);
@@ -7192,6 +7653,10 @@ var _elm_lang$html$Html_Events$Options = F2(
 		return {stopPropagation: a, preventDefault: b};
 	});
 
+var _elm_lang$html$Html_Keyed$node = _elm_lang$virtual_dom$VirtualDom$keyedNode;
+var _elm_lang$html$Html_Keyed$ol = _elm_lang$html$Html_Keyed$node('ol');
+var _elm_lang$html$Html_Keyed$ul = _elm_lang$html$Html_Keyed$node('ul');
+
 var _elm_lang$html$Html_Lazy$lazy3 = _elm_lang$virtual_dom$VirtualDom$lazy3;
 var _elm_lang$html$Html_Lazy$lazy2 = _elm_lang$virtual_dom$VirtualDom$lazy2;
 var _elm_lang$html$Html_Lazy$lazy = _elm_lang$virtual_dom$VirtualDom$lazy;
@@ -7249,22 +7714,35 @@ var _evancz$elm_todomvc$Todo$infoFooter = A2(
 						]))
 				]))
 		]));
-var _evancz$elm_todomvc$Todo$onEnter = F2(
-	function (fail, success) {
-		var tagger = function (code) {
-			return _elm_lang$core$Native_Utils.eq(code, 13) ? success : fail;
-		};
-		return A2(
-			_elm_lang$html$Html_Events$on,
-			'keyup',
-			A2(_elm_lang$core$Json_Decode$map, tagger, _elm_lang$html$Html_Events$keyCode));
-	});
-var _evancz$elm_todomvc$Todo$newTask = F2(
+var _evancz$elm_todomvc$Todo$viewControlsCount = function (entriesLeft) {
+	var item_ = _elm_lang$core$Native_Utils.eq(entriesLeft, 1) ? ' item' : ' items';
+	return A2(
+		_elm_lang$html$Html$span,
+		_elm_lang$core$Native_List.fromArray(
+			[
+				_elm_lang$html$Html_Attributes$id('todo-count')
+			]),
+		_elm_lang$core$Native_List.fromArray(
+			[
+				A2(
+				_elm_lang$html$Html$strong,
+				_elm_lang$core$Native_List.fromArray(
+					[]),
+				_elm_lang$core$Native_List.fromArray(
+					[
+						_elm_lang$html$Html$text(
+						_elm_lang$core$Basics$toString(entriesLeft))
+					])),
+				_elm_lang$html$Html$text(
+				A2(_elm_lang$core$Basics_ops['++'], item_, ' left'))
+			]));
+};
+var _evancz$elm_todomvc$Todo$newEntry = F2(
 	function (desc, id) {
 		return {description: desc, completed: false, editing: false, id: id};
 	});
 var _evancz$elm_todomvc$Todo$emptyModel = {
-	tasks: _elm_lang$core$Native_List.fromArray(
+	entries: _elm_lang$core$Native_List.fromArray(
 		[]),
 	visibility: 'All',
 	field: '',
@@ -7281,7 +7759,7 @@ var _evancz$elm_todomvc$Todo$setStorage = _elm_lang$core$Native_Platform.outgoin
 	'setStorage',
 	function (v) {
 		return {
-			tasks: _elm_lang$core$Native_List.toArray(v.tasks).map(
+			entries: _elm_lang$core$Native_List.toArray(v.entries).map(
 				function (v) {
 					return {description: v.description, completed: v.completed, editing: v.editing, id: v.id};
 				}),
@@ -7290,20 +7768,6 @@ var _evancz$elm_todomvc$Todo$setStorage = _elm_lang$core$Native_Platform.outgoin
 			visibility: v.visibility
 		};
 	});
-var _evancz$elm_todomvc$Todo$withSetStorage = function (_p0) {
-	var _p1 = _p0;
-	var _p2 = _p1._0;
-	return {
-		ctor: '_Tuple2',
-		_0: _p2,
-		_1: _elm_lang$core$Platform_Cmd$batch(
-			_elm_lang$core$Native_List.fromArray(
-				[
-					_evancz$elm_todomvc$Todo$setStorage(_p2),
-					_p1._1
-				]))
-	};
-};
 var _evancz$elm_todomvc$Todo$focus = _elm_lang$core$Native_Platform.outgoingPort(
 	'focus',
 	function (v) {
@@ -7311,8 +7775,8 @@ var _evancz$elm_todomvc$Todo$focus = _elm_lang$core$Native_Platform.outgoingPort
 	});
 var _evancz$elm_todomvc$Todo$update = F2(
 	function (msg, model) {
-		var _p3 = msg;
-		switch (_p3.ctor) {
+		var _p0 = msg;
+		switch (_p0.ctor) {
 			case 'NoOp':
 				return A2(
 					_elm_lang$core$Platform_Cmd_ops['!'],
@@ -7327,12 +7791,12 @@ var _evancz$elm_todomvc$Todo$update = F2(
 						{
 							uid: model.uid + 1,
 							field: '',
-							tasks: _elm_lang$core$String$isEmpty(model.field) ? model.tasks : A2(
+							entries: _elm_lang$core$String$isEmpty(model.field) ? model.entries : A2(
 								_elm_lang$core$Basics_ops['++'],
-								model.tasks,
+								model.entries,
 								_elm_lang$core$Native_List.fromArray(
 									[
-										A2(_evancz$elm_todomvc$Todo$newTask, model.field, model.uid)
+										A2(_evancz$elm_todomvc$Todo$newEntry, model.field, model.uid)
 									]))
 						}),
 					_elm_lang$core$Native_List.fromArray(
@@ -7342,22 +7806,22 @@ var _evancz$elm_todomvc$Todo$update = F2(
 					_elm_lang$core$Platform_Cmd_ops['!'],
 					_elm_lang$core$Native_Utils.update(
 						model,
-						{field: _p3._0}),
+						{field: _p0._0}),
 					_elm_lang$core$Native_List.fromArray(
 						[]));
-			case 'EditingTask':
-				var _p4 = _p3._0;
-				var updateTask = function (t) {
-					return _elm_lang$core$Native_Utils.eq(t.id, _p4) ? _elm_lang$core$Native_Utils.update(
+			case 'EditingEntry':
+				var _p1 = _p0._0;
+				var updateEntry = function (t) {
+					return _elm_lang$core$Native_Utils.eq(t.id, _p1) ? _elm_lang$core$Native_Utils.update(
 						t,
-						{editing: _p3._1}) : t;
+						{editing: _p0._1}) : t;
 				};
 				return A2(
 					_elm_lang$core$Platform_Cmd_ops['!'],
 					_elm_lang$core$Native_Utils.update(
 						model,
 						{
-							tasks: A2(_elm_lang$core$List$map, updateTask, model.tasks)
+							entries: A2(_elm_lang$core$List$map, updateEntry, model.entries)
 						}),
 					_elm_lang$core$Native_List.fromArray(
 						[
@@ -7365,20 +7829,20 @@ var _evancz$elm_todomvc$Todo$update = F2(
 							A2(
 								_elm_lang$core$Basics_ops['++'],
 								'#todo-',
-								_elm_lang$core$Basics$toString(_p4)))
+								_elm_lang$core$Basics$toString(_p1)))
 						]));
-			case 'UpdateTask':
-				var updateTask = function (t) {
-					return _elm_lang$core$Native_Utils.eq(t.id, _p3._0) ? _elm_lang$core$Native_Utils.update(
+			case 'UpdateEntry':
+				var updateEntry = function (t) {
+					return _elm_lang$core$Native_Utils.eq(t.id, _p0._0) ? _elm_lang$core$Native_Utils.update(
 						t,
-						{description: _p3._1}) : t;
+						{description: _p0._1}) : t;
 				};
 				return A2(
 					_elm_lang$core$Platform_Cmd_ops['!'],
 					_elm_lang$core$Native_Utils.update(
 						model,
 						{
-							tasks: A2(_elm_lang$core$List$map, updateTask, model.tasks)
+							entries: A2(_elm_lang$core$List$map, updateEntry, model.entries)
 						}),
 					_elm_lang$core$Native_List.fromArray(
 						[]));
@@ -7388,12 +7852,12 @@ var _evancz$elm_todomvc$Todo$update = F2(
 					_elm_lang$core$Native_Utils.update(
 						model,
 						{
-							tasks: A2(
+							entries: A2(
 								_elm_lang$core$List$filter,
 								function (t) {
-									return !_elm_lang$core$Native_Utils.eq(t.id, _p3._0);
+									return !_elm_lang$core$Native_Utils.eq(t.id, _p0._0);
 								},
-								model.tasks)
+								model.entries)
 						}),
 					_elm_lang$core$Native_List.fromArray(
 						[]));
@@ -7403,45 +7867,45 @@ var _evancz$elm_todomvc$Todo$update = F2(
 					_elm_lang$core$Native_Utils.update(
 						model,
 						{
-							tasks: A2(
+							entries: A2(
 								_elm_lang$core$List$filter,
-								function (_p5) {
+								function (_p2) {
 									return _elm_lang$core$Basics$not(
 										function (_) {
 											return _.completed;
-										}(_p5));
+										}(_p2));
 								},
-								model.tasks)
+								model.entries)
 						}),
 					_elm_lang$core$Native_List.fromArray(
 						[]));
 			case 'Check':
-				var updateTask = function (t) {
-					return _elm_lang$core$Native_Utils.eq(t.id, _p3._0) ? _elm_lang$core$Native_Utils.update(
+				var updateEntry = function (t) {
+					return _elm_lang$core$Native_Utils.eq(t.id, _p0._0) ? _elm_lang$core$Native_Utils.update(
 						t,
-						{completed: _p3._1}) : t;
+						{completed: _p0._1}) : t;
 				};
 				return A2(
 					_elm_lang$core$Platform_Cmd_ops['!'],
 					_elm_lang$core$Native_Utils.update(
 						model,
 						{
-							tasks: A2(_elm_lang$core$List$map, updateTask, model.tasks)
+							entries: A2(_elm_lang$core$List$map, updateEntry, model.entries)
 						}),
 					_elm_lang$core$Native_List.fromArray(
 						[]));
 			case 'CheckAll':
-				var updateTask = function (t) {
+				var updateEntry = function (t) {
 					return _elm_lang$core$Native_Utils.update(
 						t,
-						{completed: _p3._0});
+						{completed: _p0._0});
 				};
 				return A2(
 					_elm_lang$core$Platform_Cmd_ops['!'],
 					_elm_lang$core$Native_Utils.update(
 						model,
 						{
-							tasks: A2(_elm_lang$core$List$map, updateTask, model.tasks)
+							entries: A2(_elm_lang$core$List$map, updateEntry, model.entries)
 						}),
 					_elm_lang$core$Native_List.fromArray(
 						[]));
@@ -7450,16 +7914,32 @@ var _evancz$elm_todomvc$Todo$update = F2(
 					_elm_lang$core$Platform_Cmd_ops['!'],
 					_elm_lang$core$Native_Utils.update(
 						model,
-						{visibility: _p3._0}),
+						{visibility: _p0._0}),
 					_elm_lang$core$Native_List.fromArray(
 						[]));
 		}
 	});
+var _evancz$elm_todomvc$Todo$updateWithStorage = F2(
+	function (msg, model) {
+		var _p3 = A2(_evancz$elm_todomvc$Todo$update, msg, model);
+		var newModel = _p3._0;
+		var cmds = _p3._1;
+		return {
+			ctor: '_Tuple2',
+			_0: newModel,
+			_1: _elm_lang$core$Platform_Cmd$batch(
+				_elm_lang$core$Native_List.fromArray(
+					[
+						_evancz$elm_todomvc$Todo$setStorage(newModel),
+						cmds
+					]))
+		};
+	});
 var _evancz$elm_todomvc$Todo$Model = F4(
 	function (a, b, c, d) {
-		return {tasks: a, field: b, uid: c, visibility: d};
+		return {entries: a, field: b, uid: c, visibility: d};
 	});
-var _evancz$elm_todomvc$Todo$Task = F4(
+var _evancz$elm_todomvc$Todo$Entry = F4(
 	function (a, b, c, d) {
 		return {description: a, completed: b, editing: c, id: d};
 	});
@@ -7498,6 +7978,22 @@ var _evancz$elm_todomvc$Todo$visibilitySwap = F3(
 						]))
 				]));
 	});
+var _evancz$elm_todomvc$Todo$viewControlsFilters = function (visibility) {
+	return A2(
+		_elm_lang$html$Html$ul,
+		_elm_lang$core$Native_List.fromArray(
+			[
+				_elm_lang$html$Html_Attributes$id('filters')
+			]),
+		_elm_lang$core$Native_List.fromArray(
+			[
+				A3(_evancz$elm_todomvc$Todo$visibilitySwap, '#/', 'All', visibility),
+				_elm_lang$html$Html$text(' '),
+				A3(_evancz$elm_todomvc$Todo$visibilitySwap, '#/active', 'Active', visibility),
+				_elm_lang$html$Html$text(' '),
+				A3(_evancz$elm_todomvc$Todo$visibilitySwap, '#/completed', 'Completed', visibility)
+			]));
+};
 var _evancz$elm_todomvc$Todo$CheckAll = function (a) {
 	return {ctor: 'CheckAll', _0: a};
 };
@@ -7506,101 +8002,80 @@ var _evancz$elm_todomvc$Todo$Check = F2(
 		return {ctor: 'Check', _0: a, _1: b};
 	});
 var _evancz$elm_todomvc$Todo$DeleteComplete = {ctor: 'DeleteComplete'};
-var _evancz$elm_todomvc$Todo$controls = F2(
-	function (visibility, tasks) {
-		var tasksCompleted = _elm_lang$core$List$length(
+var _evancz$elm_todomvc$Todo$viewControlsClear = function (entriesCompleted) {
+	return A2(
+		_elm_lang$html$Html$button,
+		_elm_lang$core$Native_List.fromArray(
+			[
+				_elm_lang$html$Html_Attributes$class('clear-completed'),
+				_elm_lang$html$Html_Attributes$id('clear-completed'),
+				_elm_lang$html$Html_Attributes$hidden(
+				_elm_lang$core$Native_Utils.eq(entriesCompleted, 0)),
+				_elm_lang$html$Html_Events$onClick(_evancz$elm_todomvc$Todo$DeleteComplete)
+			]),
+		_elm_lang$core$Native_List.fromArray(
+			[
+				_elm_lang$html$Html$text(
+				A2(
+					_elm_lang$core$Basics_ops['++'],
+					'Clear completed (',
+					A2(
+						_elm_lang$core$Basics_ops['++'],
+						_elm_lang$core$Basics$toString(entriesCompleted),
+						')')))
+			]));
+};
+var _evancz$elm_todomvc$Todo$viewControls = F2(
+	function (visibility, entries) {
+		var entriesCompleted = _elm_lang$core$List$length(
 			A2(
 				_elm_lang$core$List$filter,
 				function (_) {
 					return _.completed;
 				},
-				tasks));
-		var tasksLeft = _elm_lang$core$List$length(tasks) - tasksCompleted;
-		var item_ = _elm_lang$core$Native_Utils.eq(tasksLeft, 1) ? ' item' : ' items';
+				entries));
+		var entriesLeft = _elm_lang$core$List$length(entries) - entriesCompleted;
 		return A2(
 			_elm_lang$html$Html$footer,
 			_elm_lang$core$Native_List.fromArray(
 				[
 					_elm_lang$html$Html_Attributes$id('footer'),
 					_elm_lang$html$Html_Attributes$hidden(
-					_elm_lang$core$List$isEmpty(tasks))
+					_elm_lang$core$List$isEmpty(entries))
 				]),
 			_elm_lang$core$Native_List.fromArray(
 				[
-					A2(
-					_elm_lang$html$Html$span,
-					_elm_lang$core$Native_List.fromArray(
-						[
-							_elm_lang$html$Html_Attributes$id('todo-count')
-						]),
-					_elm_lang$core$Native_List.fromArray(
-						[
-							A2(
-							_elm_lang$html$Html$strong,
-							_elm_lang$core$Native_List.fromArray(
-								[]),
-							_elm_lang$core$Native_List.fromArray(
-								[
-									_elm_lang$html$Html$text(
-									_elm_lang$core$Basics$toString(tasksLeft))
-								])),
-							_elm_lang$html$Html$text(
-							A2(_elm_lang$core$Basics_ops['++'], item_, ' left'))
-						])),
-					A2(
-					_elm_lang$html$Html$ul,
-					_elm_lang$core$Native_List.fromArray(
-						[
-							_elm_lang$html$Html_Attributes$id('filters')
-						]),
-					_elm_lang$core$Native_List.fromArray(
-						[
-							A3(_evancz$elm_todomvc$Todo$visibilitySwap, '#/', 'All', visibility),
-							_elm_lang$html$Html$text(' '),
-							A3(_evancz$elm_todomvc$Todo$visibilitySwap, '#/active', 'Active', visibility),
-							_elm_lang$html$Html$text(' '),
-							A3(_evancz$elm_todomvc$Todo$visibilitySwap, '#/completed', 'Completed', visibility)
-						])),
-					A2(
-					_elm_lang$html$Html$button,
-					_elm_lang$core$Native_List.fromArray(
-						[
-							_elm_lang$html$Html_Attributes$class('clear-completed'),
-							_elm_lang$html$Html_Attributes$id('clear-completed'),
-							_elm_lang$html$Html_Attributes$hidden(
-							_elm_lang$core$Native_Utils.eq(tasksCompleted, 0)),
-							_elm_lang$html$Html_Events$onClick(_evancz$elm_todomvc$Todo$DeleteComplete)
-						]),
-					_elm_lang$core$Native_List.fromArray(
-						[
-							_elm_lang$html$Html$text(
-							A2(
-								_elm_lang$core$Basics_ops['++'],
-								'Clear completed (',
-								A2(
-									_elm_lang$core$Basics_ops['++'],
-									_elm_lang$core$Basics$toString(tasksCompleted),
-									')')))
-						]))
+					A2(_elm_lang$html$Html_Lazy$lazy, _evancz$elm_todomvc$Todo$viewControlsCount, entriesLeft),
+					A2(_elm_lang$html$Html_Lazy$lazy, _evancz$elm_todomvc$Todo$viewControlsFilters, visibility),
+					A2(_elm_lang$html$Html_Lazy$lazy, _evancz$elm_todomvc$Todo$viewControlsClear, entriesCompleted)
 				]));
 	});
 var _evancz$elm_todomvc$Todo$Delete = function (a) {
 	return {ctor: 'Delete', _0: a};
 };
 var _evancz$elm_todomvc$Todo$Add = {ctor: 'Add'};
-var _evancz$elm_todomvc$Todo$UpdateTask = F2(
+var _evancz$elm_todomvc$Todo$UpdateEntry = F2(
 	function (a, b) {
-		return {ctor: 'UpdateTask', _0: a, _1: b};
+		return {ctor: 'UpdateEntry', _0: a, _1: b};
 	});
-var _evancz$elm_todomvc$Todo$EditingTask = F2(
+var _evancz$elm_todomvc$Todo$EditingEntry = F2(
 	function (a, b) {
-		return {ctor: 'EditingTask', _0: a, _1: b};
+		return {ctor: 'EditingEntry', _0: a, _1: b};
 	});
 var _evancz$elm_todomvc$Todo$UpdateField = function (a) {
 	return {ctor: 'UpdateField', _0: a};
 };
 var _evancz$elm_todomvc$Todo$NoOp = {ctor: 'NoOp'};
-var _evancz$elm_todomvc$Todo$taskEntry = function (task) {
+var _evancz$elm_todomvc$Todo$onEnter = function (msg) {
+	var tagger = function (code) {
+		return _elm_lang$core$Native_Utils.eq(code, 13) ? msg : _evancz$elm_todomvc$Todo$NoOp;
+	};
+	return A2(
+		_elm_lang$html$Html_Events$on,
+		'keydown',
+		A2(_elm_lang$core$Json_Decode$map, tagger, _elm_lang$html$Html_Events$keyCode));
+};
+var _evancz$elm_todomvc$Todo$viewInput = function (task) {
 	return A2(
 		_elm_lang$html$Html$header,
 		_elm_lang$core$Native_List.fromArray(
@@ -7626,17 +8101,14 @@ var _evancz$elm_todomvc$Todo$taskEntry = function (task) {
 						_elm_lang$html$Html_Attributes$autofocus(true),
 						_elm_lang$html$Html_Attributes$value(task),
 						_elm_lang$html$Html_Attributes$name('newTodo'),
-						A2(
-						_elm_lang$html$Html_Events$on,
-						'input',
-						A2(_elm_lang$core$Json_Decode$map, _evancz$elm_todomvc$Todo$UpdateField, _elm_lang$html$Html_Events$targetValue)),
-						A2(_evancz$elm_todomvc$Todo$onEnter, _evancz$elm_todomvc$Todo$NoOp, _evancz$elm_todomvc$Todo$Add)
+						_elm_lang$html$Html_Events$onInput(_evancz$elm_todomvc$Todo$UpdateField),
+						_evancz$elm_todomvc$Todo$onEnter(_evancz$elm_todomvc$Todo$Add)
 					]),
 				_elm_lang$core$Native_List.fromArray(
 					[]))
 			]));
 };
-var _evancz$elm_todomvc$Todo$todoItem = function (todo) {
+var _evancz$elm_todomvc$Todo$viewEntry = function (todo) {
 	return A2(
 		_elm_lang$html$Html$li,
 		_elm_lang$core$Native_List.fromArray(
@@ -7678,7 +8150,7 @@ var _evancz$elm_todomvc$Todo$todoItem = function (todo) {
 						_elm_lang$core$Native_List.fromArray(
 							[
 								_elm_lang$html$Html_Events$onDoubleClick(
-								A2(_evancz$elm_todomvc$Todo$EditingTask, todo.id, true))
+								A2(_evancz$elm_todomvc$Todo$EditingEntry, todo.id, true))
 							]),
 						_elm_lang$core$Native_List.fromArray(
 							[
@@ -7707,36 +8179,36 @@ var _evancz$elm_todomvc$Todo$todoItem = function (todo) {
 							_elm_lang$core$Basics_ops['++'],
 							'todo-',
 							_elm_lang$core$Basics$toString(todo.id))),
-						A2(
-						_elm_lang$html$Html_Events$on,
-						'input',
-						A2(
-							_elm_lang$core$Json_Decode$map,
-							_evancz$elm_todomvc$Todo$UpdateTask(todo.id),
-							_elm_lang$html$Html_Events$targetValue)),
+						_elm_lang$html$Html_Events$onInput(
+						_evancz$elm_todomvc$Todo$UpdateEntry(todo.id)),
 						_elm_lang$html$Html_Events$onBlur(
-						A2(_evancz$elm_todomvc$Todo$EditingTask, todo.id, false)),
-						A2(
-						_evancz$elm_todomvc$Todo$onEnter,
-						_evancz$elm_todomvc$Todo$NoOp,
-						A2(_evancz$elm_todomvc$Todo$EditingTask, todo.id, false))
+						A2(_evancz$elm_todomvc$Todo$EditingEntry, todo.id, false)),
+						_evancz$elm_todomvc$Todo$onEnter(
+						A2(_evancz$elm_todomvc$Todo$EditingEntry, todo.id, false))
 					]),
 				_elm_lang$core$Native_List.fromArray(
 					[]))
 			]));
 };
-var _evancz$elm_todomvc$Todo$taskList = F2(
-	function (visibility, tasks) {
-		var cssVisibility = _elm_lang$core$List$isEmpty(tasks) ? 'hidden' : 'visible';
+var _evancz$elm_todomvc$Todo$viewKeyedEntry = function (todo) {
+	return {
+		ctor: '_Tuple2',
+		_0: _elm_lang$core$Basics$toString(todo.id),
+		_1: A2(_elm_lang$html$Html_Lazy$lazy, _evancz$elm_todomvc$Todo$viewEntry, todo)
+	};
+};
+var _evancz$elm_todomvc$Todo$viewEntries = F2(
+	function (visibility, entries) {
+		var cssVisibility = _elm_lang$core$List$isEmpty(entries) ? 'hidden' : 'visible';
 		var allCompleted = A2(
 			_elm_lang$core$List$all,
 			function (_) {
 				return _.completed;
 			},
-			tasks);
+			entries);
 		var isVisible = function (todo) {
-			var _p6 = visibility;
-			switch (_p6) {
+			var _p4 = visibility;
+			switch (_p4) {
 				case 'Completed':
 					return todo.completed;
 				case 'Active':
@@ -7783,15 +8255,15 @@ var _evancz$elm_todomvc$Todo$taskList = F2(
 							_elm_lang$html$Html$text('Mark all as complete')
 						])),
 					A2(
-					_elm_lang$html$Html$ul,
+					_elm_lang$html$Html_Keyed$ul,
 					_elm_lang$core$Native_List.fromArray(
 						[
 							_elm_lang$html$Html_Attributes$id('todo-list')
 						]),
 					A2(
 						_elm_lang$core$List$map,
-						_evancz$elm_todomvc$Todo$todoItem,
-						A2(_elm_lang$core$List$filter, isVisible, tasks)))
+						_evancz$elm_todomvc$Todo$viewKeyedEntry,
+						A2(_elm_lang$core$List$filter, isVisible, entries)))
 				]));
 	});
 var _evancz$elm_todomvc$Todo$view = function (model) {
@@ -7816,9 +8288,9 @@ var _evancz$elm_todomvc$Todo$view = function (model) {
 					]),
 				_elm_lang$core$Native_List.fromArray(
 					[
-						A2(_elm_lang$html$Html_Lazy$lazy, _evancz$elm_todomvc$Todo$taskEntry, model.field),
-						A3(_elm_lang$html$Html_Lazy$lazy2, _evancz$elm_todomvc$Todo$taskList, model.visibility, model.tasks),
-						A3(_elm_lang$html$Html_Lazy$lazy2, _evancz$elm_todomvc$Todo$controls, model.visibility, model.tasks)
+						A2(_elm_lang$html$Html_Lazy$lazy, _evancz$elm_todomvc$Todo$viewInput, model.field),
+						A3(_elm_lang$html$Html_Lazy$lazy2, _evancz$elm_todomvc$Todo$viewEntries, model.visibility, model.entries),
+						A3(_elm_lang$html$Html_Lazy$lazy2, _evancz$elm_todomvc$Todo$viewControls, model.visibility, model.entries)
 					])),
 				_evancz$elm_todomvc$Todo$infoFooter
 			]));
@@ -7828,12 +8300,8 @@ var _evancz$elm_todomvc$Todo$main = {
 		{
 			init: _evancz$elm_todomvc$Todo$init,
 			view: _evancz$elm_todomvc$Todo$view,
-			update: F2(
-				function (msg, model) {
-					return _evancz$elm_todomvc$Todo$withSetStorage(
-						A2(_evancz$elm_todomvc$Todo$update, msg, model));
-				}),
-			subscriptions: function (_p7) {
+			update: _evancz$elm_todomvc$Todo$updateWithStorage,
+			subscriptions: function (_p5) {
 				return _elm_lang$core$Platform_Sub$none;
 			}
 		}),
@@ -7846,37 +8314,37 @@ var _evancz$elm_todomvc$Todo$main = {
 				_elm_lang$core$Maybe$Just,
 				A2(
 					_elm_lang$core$Json_Decode$andThen,
-					A2(_elm_lang$core$Json_Decode_ops[':='], 'field', _elm_lang$core$Json_Decode$string),
-					function (field) {
-						return A2(
-							_elm_lang$core$Json_Decode$andThen,
+					A2(
+						_elm_lang$core$Json_Decode_ops[':='],
+						'entries',
+						_elm_lang$core$Json_Decode$list(
 							A2(
-								_elm_lang$core$Json_Decode_ops[':='],
-								'tasks',
-								_elm_lang$core$Json_Decode$list(
-									A2(
+								_elm_lang$core$Json_Decode$andThen,
+								A2(_elm_lang$core$Json_Decode_ops[':='], 'completed', _elm_lang$core$Json_Decode$bool),
+								function (completed) {
+									return A2(
 										_elm_lang$core$Json_Decode$andThen,
-										A2(_elm_lang$core$Json_Decode_ops[':='], 'completed', _elm_lang$core$Json_Decode$bool),
-										function (completed) {
+										A2(_elm_lang$core$Json_Decode_ops[':='], 'description', _elm_lang$core$Json_Decode$string),
+										function (description) {
 											return A2(
 												_elm_lang$core$Json_Decode$andThen,
-												A2(_elm_lang$core$Json_Decode_ops[':='], 'description', _elm_lang$core$Json_Decode$string),
-												function (description) {
+												A2(_elm_lang$core$Json_Decode_ops[':='], 'editing', _elm_lang$core$Json_Decode$bool),
+												function (editing) {
 													return A2(
 														_elm_lang$core$Json_Decode$andThen,
-														A2(_elm_lang$core$Json_Decode_ops[':='], 'editing', _elm_lang$core$Json_Decode$bool),
-														function (editing) {
-															return A2(
-																_elm_lang$core$Json_Decode$andThen,
-																A2(_elm_lang$core$Json_Decode_ops[':='], 'id', _elm_lang$core$Json_Decode$int),
-																function (id) {
-																	return _elm_lang$core$Json_Decode$succeed(
-																		{completed: completed, description: description, editing: editing, id: id});
-																});
+														A2(_elm_lang$core$Json_Decode_ops[':='], 'id', _elm_lang$core$Json_Decode$int),
+														function (id) {
+															return _elm_lang$core$Json_Decode$succeed(
+																{completed: completed, description: description, editing: editing, id: id});
 														});
 												});
-										}))),
-							function (tasks) {
+										});
+								}))),
+					function (entries) {
+						return A2(
+							_elm_lang$core$Json_Decode$andThen,
+							A2(_elm_lang$core$Json_Decode_ops[':='], 'field', _elm_lang$core$Json_Decode$string),
+							function (field) {
 								return A2(
 									_elm_lang$core$Json_Decode$andThen,
 									A2(_elm_lang$core$Json_Decode_ops[':='], 'uid', _elm_lang$core$Json_Decode$int),
@@ -7886,7 +8354,7 @@ var _evancz$elm_todomvc$Todo$main = {
 											A2(_elm_lang$core$Json_Decode_ops[':='], 'visibility', _elm_lang$core$Json_Decode$string),
 											function (visibility) {
 												return _elm_lang$core$Json_Decode$succeed(
-													{field: field, tasks: tasks, uid: uid, visibility: visibility});
+													{entries: entries, field: field, uid: uid, visibility: visibility});
 											});
 									});
 							});
