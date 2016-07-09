@@ -125,7 +125,11 @@ update msg model =
 
     Add ->
       { model
-        | uid = model.uid + 1
+        | uid =
+            if String.isEmpty model.field then
+              model.uid
+            else
+              model.uid + 1
         , field = ""
         , entries =
             if String.isEmpty model.field then
