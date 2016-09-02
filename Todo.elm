@@ -11,6 +11,7 @@ This clean division of concerns is a core part of Elm. You can read more about
 this in <http://guide.elm-lang.org/architecture/index.html>
 -}
 
+import Dom
 import Html exposing (..)
 import Html.App as App
 import Html.Attributes exposing (..)
@@ -19,6 +20,7 @@ import Html.Keyed as Keyed
 import Html.Lazy exposing (lazy, lazy2)
 import Json.Decode as Json
 import String
+import Task
 
 
 
@@ -33,8 +35,6 @@ main =
 
 
 port setStorage : Model -> Cmd msg
-
-port focus : String -> Cmd msg
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -143,9 +143,12 @@ update msg model =
       let
         updateEntry t =
           if t.id == id then { t | editing = isEditing } else t
+
+        focus =
+          Dom.focus ("todo-" ++ toString id)
       in
         { model | entries = List.map updateEntry model.entries }
-          ! [ focus ("#todo-" ++ toString id) ]
+          ! [ Task.perform (\_ -> NoOp) (\_ -> NoOp) focus ]
 
     UpdateEntry id task ->
       let
