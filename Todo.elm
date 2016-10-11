@@ -237,13 +237,13 @@ viewInput task =
 onEnter : Msg -> Attribute Msg
 onEnter msg =
     let
-        tagger code =
+        isEnter code =
             if code == 13 then
-                msg
+                Json.succeed msg
             else
-                NoOp
+                Json.fail "not ENTER"
     in
-        on "keydown" (Json.map tagger keyCode)
+        on "keydown" (Json.andThen isEnter keyCode)
 
 
 
