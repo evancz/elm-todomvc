@@ -14,7 +14,6 @@ this in <http://guide.elm-lang.org/architecture/index.html>
 
 import Dom
 import Html exposing (..)
-import Html.App as App
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Html.Keyed as Keyed
@@ -24,9 +23,9 @@ import String
 import Task
 
 
-main : Program (Maybe Model)
+main : Program (Maybe Model) Model Msg
 main =
-    App.programWithFlags
+    Html.programWithFlags
         { init = init
         , view = view
         , update = updateWithStorage
@@ -152,7 +151,7 @@ update msg model =
                     Dom.focus ("todo-" ++ toString id)
             in
                 { model | entries = List.map updateEntry model.entries }
-                    ! [ Task.perform (\_ -> NoOp) (\_ -> NoOp) focus ]
+                    ! [ Task.attempt (\_ -> NoOp) focus ]
 
         UpdateEntry id task ->
             let
@@ -280,7 +279,7 @@ viewEntries visibility entries =
             ]
             [ input
                 [ class "toggle-all"
-                , type' "checkbox"
+                , type_ "checkbox"
                 , name "toggle"
                 , checked allCompleted
                 , onClick (CheckAll (not allCompleted))
@@ -311,7 +310,7 @@ viewEntry todo =
             [ class "view" ]
             [ input
                 [ class "toggle"
-                , type' "checkbox"
+                , type_ "checkbox"
                 , checked todo.completed
                 , onClick (Check todo.id (not todo.completed))
                 ]
