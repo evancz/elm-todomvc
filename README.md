@@ -16,3 +16,23 @@ elm-make Todo.elm --output elm.js
 ```
 
 Then open `index.html` in your browser!
+
+
+## Troubleshooting
+
+	Port Error:
+
+	No argument was given for the port named 'getStorage' with type:
+
+	    Maybe.Maybe Todo.Model
+
+	You need to provide an initial value!
+
+	Find out more about ports here <http://elm-lang.org/learn/Ports.elm>
+
+	Open the developer console for more details.
+
+
+- Because `todomvc` uses ports, it won't work when looking at `Todo.elm` or `index.html` through the `elm-reactor`. 
+
+- Instead, browse to the `index.html` file in the project folder and double click on it to launch it within the browser directly. 
