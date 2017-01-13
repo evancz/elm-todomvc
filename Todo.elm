@@ -147,10 +147,16 @@ update msg model =
                     else
                         t
 
+                updateEntries entries = 
+                    List.map updateEntry model.entries
+
+                filterEmpty entries =
+                    List.filter (\e -> e.description /= "") entries
+
                 focus =
                     Dom.focus ("todo-" ++ toString id)
             in
-                { model | entries = List.map updateEntry model.entries }
+                { model | entries = (model.entries |> updateEntries |> filterEmpty)  }
                     ! [ Task.attempt (\_ -> NoOp) focus ]
 
         UpdateEntry id task ->
