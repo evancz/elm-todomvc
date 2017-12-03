@@ -19,13 +19,15 @@ import Html.Events exposing (..)
 import Html.Keyed as Keyed
 import Html.Lazy exposing (lazy, lazy2)
 import Json.Decode as Json
+import Navigation exposing (Location)
 import String
 import Task
+import UrlParser exposing (Parser, oneOf, parseHash, top)
 
 
-main : Program (Maybe Model) Model Msg
+main : Program (Maybe SerializableModel) Model Msg
 main =
-    Html.programWithFlags
+    Navigation.programWithFlags ChangeVisibility
         { init = init
         , view = view
         , update = updateWithStorage
@@ -33,7 +35,7 @@ main =
         }
 
 
-port setStorage : Model -> Cmd msg
+port setStorage : SerializableModel -> Cmd msg
 
 
 {-| We want to `setStorage` on every update. This function adds the setStorage
@@ -44,9 +46,14 @@ updateWithStorage msg model =
     let
         ( newModel, cmds ) =
             update msg model
+        serializableModel =
+            { entries = newModel.entries
+            , field = newModel.field
+            , uid = newModel.uid
+            }
     in
         ( newModel
-        , Cmd.batch [ setStorage newModel, cmds ]
+        , Cmd.batch [ setStorage serializableModel, cmds ]
         )
 
 
@@ -59,7 +66,16 @@ type alias Model =
     { entries : List Entry
     , field : String
     , uid : Int
-    , visibility : String
+    , visibility : Visibility
+    }
+
+-- It doesn't make sense to serialize the visibility (the route) because a user may arrive to the app at /#active when
+-- /#complete is stored in the app state.
+
+type alias SerializableModel =
+    { entries : List Entry
+    , field : String
+    , uid : Int
     }
 
 
@@ -70,15 +86,10 @@ type alias Entry =
     , id : Int
     }
 
-
-emptyModel : Model
-emptyModel =
-    { entries = []
-    , visibility = "All"
-    , field = ""
-    , uid = 0
-    }
-
+type Visibility =
+    All
+    | Active
+    | Completed
 
 newEntry : String -> Int -> Entry
 newEntry desc id =
@@ -89,9 +100,21 @@ newEntry desc id =
     }
 
 
-init : Maybe Model -> ( Model, Cmd Msg )
-init savedModel =
-    Maybe.withDefault emptyModel savedModel ! []
+--init : Maybe Model -> ( Model, Cmd Msg )
+init : Maybe SerializableModel -> Location -> ( Model, Cmd Msg )
+init savedModel location  =
+    let
+        serializedModel =
+            Maybe.withDefault { entries = [], field = "", uid = 0 } savedModel
+
+        model =
+            { entries = serializedModel.entries
+            , visibility = (parseLocation location)
+            , field = serializedModel.field
+            , uid = serializedModel.uid
+            }
+    in
+        model ! []
 
 
 
@@ -112,7 +135,7 @@ type Msg
     | DeleteComplete
     | Check Int Bool
     | CheckAll Bool
-    | ChangeVisibility String
+    | ChangeVisibility Location
 
 
 
@@ -191,11 +214,27 @@ update msg model =
                 { model | entries = List.map updateEntry model.entries }
                     ! []
 
-        ChangeVisibility visibility ->
-            { model | visibility = visibility }
-                ! []
+        ChangeVisibility location ->
+            { model | visibility = (parseLocation location) }
+             ! []
+
+matchers : Parser (Visibility -> a) a
+matchers =
+    oneOf
+        [ UrlParser.map All top
+        , UrlParser.map Active (UrlParser.s "active")
+        , UrlParser.map Completed (UrlParser.s "completed")
+        ]
 
 
+parseLocation : Location -> Visibility
+parseLocation location =
+    case (parseHash matchers location) of
+        Just route ->
+            route
+
+        Nothing ->
+            All
 
 -- VIEW
 
@@ -250,18 +289,18 @@ onEnter msg =
 -- VIEW ALL ENTRIES
 
 
-viewEntries : String -> List Entry -> Html Msg
+viewEntries : Visibility -> List Entry -> Html Msg
 viewEntries visibility entries =
     let
         isVisible todo =
             case visibility of
-                "Completed" ->
+                Completed ->
                     todo.completed
 
-                "Active" ->
+                Active ->
                     not todo.completed
 
-                _ ->
+                All ->
                     True
 
         allCompleted =
@@ -341,7 +380,7 @@ viewEntry todo =
 -- VIEW CONTROLS AND FOOTER
 
 
-viewControls : String -> List Entry -> Html Msg
+viewControls : Visibility -> List Entry -> Html Msg
 viewControls visibility entries =
     let
         entriesCompleted =
@@ -376,24 +415,24 @@ viewControlsCount entriesLeft =
             ]
 
 
-viewControlsFilters : String -> Html Msg
+viewControlsFilters : Visibility -> Html Msg
 viewControlsFilters visibility =
     ul
         [ class "filters" ]
-        [ visibilitySwap "#/" "All" visibility
+        [ visibilitySwap "#/" All visibility
         , text " "
-        , visibilitySwap "#/active" "Active" visibility
+        , visibilitySwap "#/active" Active visibility
         , text " "
-        , visibilitySwap "#/completed" "Completed" visibility
+        , visibilitySwap "#/completed" Completed visibility
         ]
 
 
-visibilitySwap : String -> String -> String -> Html Msg
+visibilitySwap : String -> Visibility -> Visibility -> Html Msg
 visibilitySwap uri visibility actualVisibility =
     li
-        [ onClick (ChangeVisibility visibility) ]
+        [ ]
         [ a [ href uri, classList [ ( "selected", visibility == actualVisibility ) ] ]
-            [ text visibility ]
+            [ text (toString visibility) ]
         ]
 
 
