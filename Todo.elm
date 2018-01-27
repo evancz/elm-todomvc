@@ -12,23 +12,23 @@ This clean division of concerns is a core part of Elm. You can read more about
 this in <http://guide.elm-lang.org/architecture/index.html>
 -}
 
-import Dom
+import Browser
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Html.Keyed as Keyed
 import Html.Lazy exposing (lazy, lazy2)
 import Json.Decode as Json
-import String
 import Task
 
 
 main : Program (Maybe Model) Model Msg
 main =
-    Html.programWithFlags
+    Browser.fullscreen
         { init = init
-        , view = view
+        , view = \model -> { title = "Elm • TodoMVC", body = [view model] }
         , update = updateWithStorage
+        , onNavigation = Nothing
         , subscriptions = \_ -> Sub.none
         }
 
@@ -89,9 +89,9 @@ newEntry desc id =
     }
 
 
-init : Maybe Model -> ( Model, Cmd Msg )
-init savedModel =
-    Maybe.withDefault emptyModel savedModel ! []
+init : Browser.Env (Maybe Model) -> ( Model, Cmd Msg )
+init env =
+  ( Maybe.withDefault emptyModel env.flags, Cmd.none )
 
 
 
@@ -121,10 +121,10 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         NoOp ->
-            model ! []
+            ( model, Cmd.none )
 
         Add ->
-            { model
+            ( { model
                 | uid = model.uid + 1
                 , field = ""
                 , entries =
@@ -132,12 +132,14 @@ update msg model =
                         model.entries
                     else
                         model.entries ++ [ newEntry model.field model.uid ]
-            }
-                ! []
+              }
+            , Cmd.none
+            )
 
         UpdateField str ->
-            { model | field = str }
-                ! []
+            ( { model | field = str }
+            , Cmd.none
+            )
 
         EditingEntry id isEditing ->
             let
@@ -148,10 +150,11 @@ update msg model =
                         t
 
                 focus =
-                    Dom.focus ("todo-" ++ toString id)
+                    Browser.focus ("todo-" ++ String.fromInt id)
             in
-                { model | entries = List.map updateEntry model.entries }
-                    ! [ Task.attempt (\_ -> NoOp) focus ]
+            ( { model | entries = List.map updateEntry model.entries }
+            , Task.attempt (\_ -> NoOp) focus
+            )
 
         UpdateEntry id task ->
             let
@@ -161,16 +164,19 @@ update msg model =
                     else
                         t
             in
-                { model | entries = List.map updateEntry model.entries }
-                    ! []
+            ( { model | entries = List.map updateEntry model.entries }
+            , Cmd.none
+            )
 
         Delete id ->
-            { model | entries = List.filter (\t -> t.id /= id) model.entries }
-                ! []
+            ( { model | entries = List.filter (\t -> t.id /= id) model.entries }
+            , Cmd.none
+            )
 
         DeleteComplete ->
-            { model | entries = List.filter (not << .completed) model.entries }
-                ! []
+            ( { model | entries = List.filter (not << .completed) model.entries }
+            , Cmd.none
+            )
 
         Check id isCompleted ->
             let
@@ -180,20 +186,23 @@ update msg model =
                     else
                         t
             in
-                { model | entries = List.map updateEntry model.entries }
-                    ! []
+            ( { model | entries = List.map updateEntry model.entries }
+            , Cmd.none
+            )
 
         CheckAll isCompleted ->
             let
                 updateEntry t =
                     { t | completed = isCompleted }
             in
-                { model | entries = List.map updateEntry model.entries }
-                    ! []
+            ( { model | entries = List.map updateEntry model.entries }
+            , Cmd.none
+            )
 
         ChangeVisibility visibility ->
-            { model | visibility = visibility }
-                ! []
+            ( { model | visibility = visibility }
+            , Cmd.none
+            )
 
 
 
@@ -204,7 +213,7 @@ view : Model -> Html Msg
 view model =
     div
         [ class "todomvc-wrapper"
-        , style [ ( "visibility", "hidden" ) ]
+        , style "visibility" "hidden"
         ]
         [ section
             [ class "todoapp" ]
@@ -275,7 +284,7 @@ viewEntries visibility entries =
     in
         section
             [ class "main"
-            , style [ ( "visibility", cssVisibility ) ]
+            , style "visibility" cssVisibility
             ]
             [ input
                 [ class "toggle-all"
@@ -299,7 +308,7 @@ viewEntries visibility entries =
 
 viewKeyedEntry : Entry -> ( String, Html Msg )
 viewKeyedEntry todo =
-    ( toString todo.id, lazy viewEntry todo )
+    ( String.fromInt todo.id, lazy viewEntry todo )
 
 
 viewEntry : Entry -> Html Msg
@@ -328,7 +337,7 @@ viewEntry todo =
             [ class "edit"
             , value todo.description
             , name "title"
-            , id ("todo-" ++ toString todo.id)
+            , id ("todo-" ++ String.fromInt todo.id)
             , onInput (UpdateEntry todo.id)
             , onBlur (EditingEntry todo.id False)
             , onEnter (EditingEntry todo.id False)
@@ -371,7 +380,7 @@ viewControlsCount entriesLeft =
     in
         span
             [ class "todo-count" ]
-            [ strong [] [ text (toString entriesLeft) ]
+            [ strong [] [ text (String.fromInt entriesLeft) ]
             , text (item_ ++ " left")
             ]
 
@@ -404,7 +413,7 @@ viewControlsClear entriesCompleted =
         , hidden (entriesCompleted == 0)
         , onClick DeleteComplete
         ]
-        [ text ("Clear completed (" ++ toString entriesCompleted ++ ")")
+        [ text ("Clear completed (" ++ String.fromInt entriesCompleted ++ ")")
         ]
 
 
