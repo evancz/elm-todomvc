@@ -1,5 +1,5 @@
 {
-    "type": "browser",
+    "type": "application",
     "source-directories": [
         "."
     ],
@@ -8,11 +8,13 @@
         "elm-lang/browser": "1.0.0",
         "elm-lang/core": "6.0.0",
         "elm-lang/html": "3.0.0",
+        "elm-lang/http": "2.0.0",
         "elm-lang/json": "1.0.0"
     },
     "test-dependencies": {},
     "do-not-edit-this-by-hand": {
         "transitive-dependencies": {
+            "elm-lang/url": "1.0.0",
             "elm-lang/virtual-dom": "3.0.0"
         }
     }
