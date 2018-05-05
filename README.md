@@ -1,4 +1,4 @@
-# TodoMVC in Elm - [Try It!](http://evancz.github.io/elm-todomvc)
+# TodoMVC in Elm - [Try It!](https://evancz.github.io/elm-todomvc)
 
 All of the Elm code lives in `Todo.elm` and relies on the [elm-lang/html][html] library. 
 
