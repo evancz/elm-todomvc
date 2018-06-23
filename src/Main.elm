@@ -1,4 +1,4 @@
-port module Todo exposing (..)
+port module Main exposing (..)
 
 {-| TodoMVC implemented in Elm, using plain HTML and CSS for rendering.
 
