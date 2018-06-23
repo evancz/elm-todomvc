@@ -13,6 +13,7 @@ this in <http://guide.elm-lang.org/architecture/index.html>
 -}
 
 import Browser
+import Browser.Dom as Dom
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
@@ -24,11 +25,10 @@ import Task
 
 main : Program (Maybe Model) Model Msg
 main =
-    Browser.fullscreen
+    Browser.document
         { init = init
         , view = \model -> { title = "Elm • TodoMVC", body = [view model] }
         , update = updateWithStorage
-        , onNavigation = Nothing
         , subscriptions = \_ -> Sub.none
         }
 
@@ -89,9 +89,11 @@ newEntry desc id =
     }
 
 
-init : Browser.Env (Maybe Model) -> ( Model, Cmd Msg )
-init env =
-  ( Maybe.withDefault emptyModel env.flags, Cmd.none )
+init : Maybe Model -> ( Model, Cmd Msg )
+init maybeModel =
+  ( Maybe.withDefault emptyModel maybeModel
+  , Cmd.none
+  )
 
 
 
@@ -150,7 +152,7 @@ update msg model =
                         t
 
                 focus =
-                    Browser.focus ("todo-" ++ String.fromInt id)
+                    Dom.focus ("todo-" ++ String.fromInt id)
             in
             ( { model | entries = List.map updateEntry model.entries }
             , Task.attempt (\_ -> NoOp) focus
